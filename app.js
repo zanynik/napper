@@ -1,7 +1,7 @@
 const STORAGE_KEY = "napper-web-state-v2";
 const MS_IN_DAY = 24 * 60 * 60 * 1000;
 
-const agePriors = [
+const sleepPriors = [
   { maxMonths: 2, wakeMinutes: 70, wakeRange: [45, 95], napMinutes: 95, naps: 5, totalDaySleep: 500 },
   { maxMonths: 4, wakeMinutes: 100, wakeRange: [75, 140], napMinutes: 85, naps: 4, totalDaySleep: 380 },
   { maxMonths: 6, wakeMinutes: 135, wakeRange: [105, 180], napMinutes: 80, naps: 3, totalDaySleep: 260 },
@@ -11,29 +11,57 @@ const agePriors = [
   { maxMonths: 36, wakeMinutes: 320, wakeRange: [260, 390], napMinutes: 85, naps: 1, totalDaySleep: 110 },
 ];
 
+const feedPriors = [
+  { maxMonths: 2, intervalMinutes: 150, range: [90, 240] },
+  { maxMonths: 4, intervalMinutes: 165, range: [105, 255] },
+  { maxMonths: 6, intervalMinutes: 180, range: [120, 270] },
+  { maxMonths: 12, intervalMinutes: 210, range: [135, 300] },
+  { maxMonths: 36, intervalMinutes: 240, range: [150, 360] },
+];
+
 const els = {
-  headline: document.querySelector("#headline"),
-  statusNote: document.querySelector("#statusNote"),
+  napHeadline: document.querySelector("#napHeadline"),
+  napNote: document.querySelector("#napNote"),
   napToggleButton: document.querySelector("#napToggleButton"),
-  manualLogForm: document.querySelector("#manualLogForm"),
-  manualDateInput: document.querySelector("#manualDateInput"),
-  manualStartInput: document.querySelector("#manualStartInput"),
-  manualEndInput: document.querySelector("#manualEndInput"),
+  nightHeadline: document.querySelector("#nightHeadline"),
+  nightNote: document.querySelector("#nightNote"),
+  nightPrimaryButton: document.querySelector("#nightPrimaryButton"),
+  nightSecondaryButton: document.querySelector("#nightSecondaryButton"),
+  feedHeadline: document.querySelector("#feedHeadline"),
+  feedQuickNote: document.querySelector("#feedQuickNote"),
+  feedLeftButton: document.querySelector("#feedLeftButton"),
+  feedRightButton: document.querySelector("#feedRightButton"),
+  feedBothButton: document.querySelector("#feedBothButton"),
+  feedBottleButton: document.querySelector("#feedBottleButton"),
   nextSleepMain: document.querySelector("#nextSleepMain"),
   nextSleepNote: document.querySelector("#nextSleepNote"),
+  nextFeedMain: document.querySelector("#nextFeedMain"),
+  nextFeedNote: document.querySelector("#nextFeedNote"),
   planScale: document.querySelector("#planScale"),
   planTrack: document.querySelector("#planTrack"),
   upcomingList: document.querySelector("#upcomingList"),
   historyDateInput: document.querySelector("#historyDateInput"),
   historySummary: document.querySelector("#historySummary"),
   historyList: document.querySelector("#historyList"),
+  manualNapForm: document.querySelector("#manualNapForm"),
+  manualNapDateInput: document.querySelector("#manualNapDateInput"),
+  manualNapStartInput: document.querySelector("#manualNapStartInput"),
+  manualNapEndInput: document.querySelector("#manualNapEndInput"),
+  manualFeedForm: document.querySelector("#manualFeedForm"),
+  manualFeedDateInput: document.querySelector("#manualFeedDateInput"),
+  manualFeedTimeInput: document.querySelector("#manualFeedTimeInput"),
+  manualFeedKindInput: document.querySelector("#manualFeedKindInput"),
   settingsForm: document.querySelector("#settingsForm"),
+  ageSummary: document.querySelector("#ageSummary"),
   babyNameInput: document.querySelector("#babyNameInput"),
+  dateOfBirthInput: document.querySelector("#dateOfBirthInput"),
+  dueDateInput: document.querySelector("#dueDateInput"),
   ageMonthsInput: document.querySelector("#ageMonthsInput"),
   wakeTimeInput: document.querySelector("#wakeTimeInput"),
   bedTimeInput: document.querySelector("#bedTimeInput"),
   baselineWakeInput: document.querySelector("#baselineWakeInput"),
   baselineNapInput: document.querySelector("#baselineNapInput"),
+  baselineFeedInput: document.querySelector("#baselineFeedInput"),
   installButton: document.querySelector("#installButton"),
   exportButton: document.querySelector("#exportButton"),
   importInput: document.querySelector("#importInput"),
@@ -63,6 +91,17 @@ function parseTime(value) {
   return hours * 60 + minutes;
 }
 
+function combineDateAndTime(dateValue, timeValue) {
+  const [year, month, day] = dateValue.split("-").map(Number);
+  const [hours, minutes] = timeValue.split(":").map(Number);
+  return new Date(year, month - 1, day, hours, minutes);
+}
+
+function parseDateValue(dateValue) {
+  const [year, month, day] = dateValue.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
 function formatClock(dateLike) {
   return new Date(dateLike).toLocaleTimeString([], {
     hour: "numeric",
@@ -86,11 +125,6 @@ function formatDuration(minutes) {
 function formatDateInput(dateLike) {
   const date = new Date(dateLike);
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
-function parseDateValue(dateValue) {
-  const [year, month, day] = dateValue.split("-").map(Number);
-  return new Date(year, month - 1, day);
 }
 
 function formatDateLabel(dateLike) {
@@ -138,14 +172,69 @@ function uid() {
   return Math.random().toString(36).slice(2, 10);
 }
 
-function combineDateAndTime(dateValue, timeValue) {
-  const [year, month, day] = dateValue.split("-").map(Number);
-  const [hours, minutes] = timeValue.split(":").map(Number);
-  return new Date(year, month - 1, day, hours, minutes);
+function formatFeedKind(kind) {
+  return {
+    left: "Left breast",
+    right: "Right breast",
+    both: "Both breasts",
+    bottle: "Bottle",
+  }[kind] || "Feed";
 }
 
-function getPrior(ageMonths) {
-  return agePriors.find((prior) => ageMonths <= prior.maxMonths) || agePriors[agePriors.length - 1];
+function humanizeAge(days) {
+  const weeks = Math.floor(days / 7);
+  const remainingDays = days % 7;
+  if (weeks <= 0) {
+    return `${days} day${days === 1 ? "" : "s"}`;
+  }
+  return `${weeks} week${weeks === 1 ? "" : "s"} ${remainingDays} day${remainingDays === 1 ? "" : "s"}`;
+}
+
+function isValidDateValue(value) {
+  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function getProfileAgeInfo(referenceDate = now()) {
+  const today = startOfDay(referenceDate);
+  const birthValue = state.profile.dateOfBirth;
+  const dueValue = state.profile.dueDate;
+
+  if (isValidDateValue(birthValue)) {
+    const birthDate = parseDateValue(birthValue);
+    const chronologicalDays = Math.max(0, Math.floor((today - birthDate) / MS_IN_DAY));
+    let effectiveDays = chronologicalDays;
+    let summary = `Age ${humanizeAge(chronologicalDays)}.`;
+
+    if (isValidDateValue(dueValue)) {
+      const dueDate = parseDateValue(dueValue);
+      if (dueDate > birthDate) {
+        effectiveDays = Math.max(0, Math.floor((today - dueDate) / MS_IN_DAY));
+        summary = `Chronological age ${humanizeAge(chronologicalDays)}. Corrected age ${humanizeAge(
+          effectiveDays,
+        )}.`;
+      }
+    }
+
+    return {
+      ageMonths: effectiveDays / 30.4375,
+      summary,
+      source: "dates",
+    };
+  }
+
+  return {
+    ageMonths: clamp(Number(state.profile.ageMonthsFallback) || 0, 0, 36),
+    summary: `Using manual age ${state.profile.ageMonthsFallback} months. Add date of birth for more precise age-based predictions.`,
+    source: "manual",
+  };
+}
+
+function getSleepPrior(ageMonths) {
+  return sleepPriors.find((prior) => ageMonths <= prior.maxMonths) || sleepPriors[sleepPriors.length - 1];
+}
+
+function getFeedPrior(ageMonths) {
+  return feedPriors.find((prior) => ageMonths <= prior.maxMonths) || feedPriors[feedPriors.length - 1];
 }
 
 function circadianAdjustment(predictedStartTime, ageMonths) {
@@ -161,13 +250,94 @@ function buildSeedState() {
   return {
     profile: {
       babyName: "Baby",
-      ageMonths: 6,
+      dateOfBirth: "",
+      dueDate: "",
+      ageMonthsFallback: 6,
       wakeTime: "07:00",
       bedTime: "19:30",
       baselineWake: 135,
       baselineNap: 80,
+      baselineFeedInterval: 180,
     },
     naps: [],
+    nights: [],
+    feeds: [],
+  };
+}
+
+function normalizeSleepRecord(record) {
+  if (!record || !record.start) {
+    return null;
+  }
+
+  const startDate = new Date(record.start);
+  const endDate = record.end ? new Date(record.end) : null;
+  if (Number.isNaN(startDate.getTime()) || (endDate && Number.isNaN(endDate.getTime()))) {
+    return null;
+  }
+
+  return {
+    id: record.id || uid(),
+    start: startDate.toISOString(),
+    end: endDate ? endDate.toISOString() : null,
+  };
+}
+
+function normalizeNightRecord(record) {
+  if (!record || !record.start) {
+    return null;
+  }
+
+  const startDate = new Date(record.start);
+  const endDate = record.end ? new Date(record.end) : null;
+  if (Number.isNaN(startDate.getTime()) || (endDate && Number.isNaN(endDate.getTime()))) {
+    return null;
+  }
+
+  const breaks = Array.isArray(record.breaks)
+    ? record.breaks
+        .map((nightBreak) => {
+          if (!nightBreak || !nightBreak.start) {
+            return null;
+          }
+          const breakStart = new Date(nightBreak.start);
+          const breakEnd = nightBreak.end ? new Date(nightBreak.end) : null;
+          if (Number.isNaN(breakStart.getTime()) || (breakEnd && Number.isNaN(breakEnd.getTime()))) {
+            return null;
+          }
+          return {
+            id: nightBreak.id || uid(),
+            start: breakStart.toISOString(),
+            end: breakEnd ? breakEnd.toISOString() : null,
+          };
+        })
+        .filter(Boolean)
+    : [];
+
+  return {
+    id: record.id || uid(),
+    start: startDate.toISOString(),
+    end: endDate ? endDate.toISOString() : null,
+    breaks,
+  };
+}
+
+function normalizeFeedRecord(record) {
+  const timeValue = record?.time || record?.start;
+  if (!timeValue) {
+    return null;
+  }
+
+  const time = new Date(timeValue);
+  if (Number.isNaN(time.getTime())) {
+    return null;
+  }
+
+  const kind = ["left", "right", "both", "bottle"].includes(record.kind) ? record.kind : "left";
+  return {
+    id: record.id || uid(),
+    time: time.toISOString(),
+    kind,
   };
 }
 
@@ -179,32 +349,30 @@ function normalizeState(candidate) {
 
   const profile = {
     babyName: String(candidate.profile?.babyName || base.profile.babyName).slice(0, 24),
-    ageMonths: clamp(Number(candidate.profile?.ageMonths) || base.profile.ageMonths, 0, 36),
+    dateOfBirth: candidate.profile?.dateOfBirth || "",
+    dueDate: candidate.profile?.dueDate || "",
+    ageMonthsFallback: clamp(
+      Number(candidate.profile?.ageMonthsFallback ?? candidate.profile?.ageMonths) || base.profile.ageMonthsFallback,
+      0,
+      36,
+    ),
     wakeTime: candidate.profile?.wakeTime || base.profile.wakeTime,
     bedTime: candidate.profile?.bedTime || base.profile.bedTime,
     baselineWake: clamp(Number(candidate.profile?.baselineWake) || base.profile.baselineWake, 30, 420),
     baselineNap: clamp(Number(candidate.profile?.baselineNap) || base.profile.baselineNap, 20, 240),
+    baselineFeedInterval: clamp(
+      Number(candidate.profile?.baselineFeedInterval) || base.profile.baselineFeedInterval,
+      60,
+      360,
+    ),
   };
 
-  const naps = Array.isArray(candidate.naps)
-    ? candidate.naps
-        .filter((nap) => nap && nap.start)
-        .map((nap) => {
-          const startDate = new Date(nap.start);
-          const endDate = nap.end ? new Date(nap.end) : null;
-          if (Number.isNaN(startDate.getTime()) || (endDate && Number.isNaN(endDate.getTime()))) {
-            return null;
-          }
-          return {
-            id: nap.id || uid(),
-            start: startDate.toISOString(),
-            end: endDate ? endDate.toISOString() : null,
-          };
-        })
-        .filter(Boolean)
-    : [];
-
-  return { profile, naps };
+  return {
+    profile,
+    naps: Array.isArray(candidate.naps) ? candidate.naps.map(normalizeSleepRecord).filter(Boolean) : [],
+    nights: Array.isArray(candidate.nights) ? candidate.nights.map(normalizeNightRecord).filter(Boolean) : [],
+    feeds: Array.isArray(candidate.feeds) ? candidate.feeds.map(normalizeFeedRecord).filter(Boolean) : [],
+  };
 }
 
 function loadState() {
@@ -230,6 +398,8 @@ function replaceState(nextState) {
   const normalized = normalizeState(nextState);
   state.profile = normalized.profile;
   state.naps = normalized.naps;
+  state.nights = normalized.nights;
+  state.feeds = normalized.feeds;
   ui.historyDate = formatDateInput(now());
   syncForm();
   syncDateInputs();
@@ -237,7 +407,14 @@ function replaceState(nextState) {
 }
 
 function isValidState(candidate) {
-  return candidate && typeof candidate === "object" && candidate.profile && Array.isArray(candidate.naps);
+  return (
+    candidate &&
+    typeof candidate === "object" &&
+    candidate.profile &&
+    Array.isArray(candidate.naps) &&
+    Array.isArray(candidate.nights ?? []) &&
+    Array.isArray(candidate.feeds ?? [])
+  );
 }
 
 function getParsedNaps() {
@@ -247,28 +424,67 @@ function getParsedNaps() {
       startDate: new Date(nap.start),
       endDate: nap.end ? new Date(nap.end) : null,
     }))
-    .filter((nap) => !Number.isNaN(nap.startDate.getTime()))
     .sort((a, b) => a.startDate - b.startDate);
 }
 
-function getCompletedNaps() {
-  return getParsedNaps().filter((nap) => nap.endDate && nap.endDate > nap.startDate);
+function getParsedFeeds() {
+  return state.feeds
+    .map((feed) => ({
+      ...feed,
+      timeDate: new Date(feed.time),
+    }))
+    .sort((a, b) => a.timeDate - b.timeDate);
+}
+
+function getParsedNights() {
+  return state.nights
+    .map((night) => ({
+      ...night,
+      startDate: new Date(night.start),
+      endDate: night.end ? new Date(night.end) : null,
+      breaks: (night.breaks || [])
+        .map((nightBreak) => ({
+          ...nightBreak,
+          startDate: new Date(nightBreak.start),
+          endDate: nightBreak.end ? new Date(nightBreak.end) : null,
+        }))
+        .sort((a, b) => a.startDate - b.startDate),
+    }))
+    .sort((a, b) => a.startDate - b.startDate);
 }
 
 function getActiveNap() {
   return state.naps.find((nap) => !nap.end) || null;
 }
 
-function getActiveNapEvent() {
-  const activeNap = getActiveNap();
-  if (!activeNap) {
+function getActiveNight() {
+  return state.nights.find((night) => !night.end) || null;
+}
+
+function getActiveNightEvent() {
+  const activeNight = getActiveNight();
+  if (!activeNight) {
     return null;
   }
+
   return {
-    ...activeNap,
-    startDate: new Date(activeNap.start),
+    ...activeNight,
+    startDate: new Date(activeNight.start),
     endDate: null,
+    breaks: (activeNight.breaks || []).map((nightBreak) => ({
+      ...nightBreak,
+      startDate: new Date(nightBreak.start),
+      endDate: nightBreak.end ? new Date(nightBreak.end) : null,
+    })),
   };
+}
+
+function getActiveNightBreak(nightEvent = getActiveNightEvent()) {
+  return nightEvent?.breaks?.find((nightBreak) => !nightBreak.endDate) || null;
+}
+
+function getCompletedNaps() {
+  return getParsedNaps().filter((nap) => nap.endDate && nap.endDate > nap.startDate);
 }
 
 function getTodayBounds() {
@@ -278,7 +494,7 @@ function getTodayBounds() {
   return { dayStart, dayEnd };
 }
 
-function getTodayEvents() {
+function getTodayNaps() {
   const { dayStart, dayEnd } = getTodayBounds();
   return getParsedNaps().filter((nap) => {
     const napEnd = nap.endDate || now();
@@ -311,9 +527,26 @@ function recentNapLengths() {
     .slice(-8);
 }
 
-function getPredictionModel() {
-  const profile = state.profile;
-  const prior = getPrior(profile.ageMonths);
+function recentFeedIntervals() {
+  const feeds = getParsedFeeds();
+  const values = [];
+
+  feeds.forEach((feed, index) => {
+    if (index === 0) {
+      return;
+    }
+    const interval = (feed.timeDate - feeds[index - 1].timeDate) / 60000;
+    if (interval > 20 && interval < 480) {
+      values.push(interval);
+    }
+  });
+
+  return values.slice(-12);
+}
+
+function getSleepPredictionModel() {
+  const ageInfo = getProfileAgeInfo();
+  const prior = getSleepPrior(ageInfo.ageMonths);
   const wakeSeries = recentWakeWindows();
   const napSeries = recentNapLengths();
   const wakeMedian = median(wakeSeries);
@@ -325,32 +558,46 @@ function getPredictionModel() {
     wakeSeries.length >= 2
       ? 0.45 * (wakeMedian || prior.wakeMinutes) +
         0.35 * (wakeEwma || prior.wakeMinutes) +
-        0.2 * profile.baselineWake
-      : 0.6 * prior.wakeMinutes + 0.4 * profile.baselineWake;
+        0.2 * state.profile.baselineWake
+      : 0.6 * prior.wakeMinutes + 0.4 * state.profile.baselineWake;
 
   const blendedNapBase =
     napSeries.length >= 2
       ? 0.45 * (napMedian || prior.napMinutes) +
         0.35 * (napEwma || prior.napMinutes) +
-        0.2 * profile.baselineNap
-      : 0.6 * prior.napMinutes + 0.4 * profile.baselineNap;
+        0.2 * state.profile.baselineNap
+      : 0.6 * prior.napMinutes + 0.4 * state.profile.baselineNap;
 
   const wakeDeviation =
-    wakeSeries.length >= 2
-      ? stddev(wakeSeries)
-      : (prior.wakeRange[1] - prior.wakeRange[0]) / 4;
-
-  const confidenceScore = clamp(
-    97 - wakeDeviation * 0.95 - Math.max(0, 4 - wakeSeries.length) * 10,
-    30,
-    96,
-  );
+    wakeSeries.length >= 2 ? stddev(wakeSeries) : (prior.wakeRange[1] - prior.wakeRange[0]) / 4;
 
   return {
+    ageInfo,
     prior,
     wakeBase: clamp(blendedWakeBase, prior.wakeRange[0], prior.wakeRange[1]),
     napBase: clamp(blendedNapBase, 25, 180),
-    confidenceScore,
+    confidenceScore: clamp(97 - wakeDeviation * 0.95 - Math.max(0, 4 - wakeSeries.length) * 10, 30, 96),
+  };
+}
+
+function getFeedPredictionModel() {
+  const ageInfo = getProfileAgeInfo();
+  const prior = getFeedPrior(ageInfo.ageMonths);
+  const intervals = recentFeedIntervals();
+  const intervalMedian = median(intervals);
+  const intervalEwma = ewma(intervals);
+
+  const intervalBase =
+    intervals.length >= 2
+      ? 0.5 * (intervalMedian || prior.intervalMinutes) +
+        0.3 * (intervalEwma || prior.intervalMinutes) +
+        0.2 * state.profile.baselineFeedInterval
+      : 0.7 * prior.intervalMinutes + 0.3 * state.profile.baselineFeedInterval;
+
+  return {
+    ageInfo,
+    prior,
+    intervalMinutes: clamp(intervalBase, prior.range[0], prior.range[1]),
   };
 }
 
@@ -374,30 +621,30 @@ function getCurrentWakeAnchor(todayNaps, dayStart) {
   return completedToday[completedToday.length - 1].endDate;
 }
 
-function buildPredictions() {
+function buildSleepPredictions() {
   const { dayStart, dayEnd } = getTodayBounds();
-  const model = getPredictionModel();
-  const todayNaps = getTodayEvents();
-  const activeNap = getActiveNapEvent();
+  const model = getSleepPredictionModel();
+  const todayNaps = getTodayNaps();
+  const activeNap = getActiveNap();
   const predictions = [];
   const todaySleepTotal = getTodaySleepTotal(todayNaps);
   const remainingDaySleepBudget = Math.max(0, model.prior.totalDaySleep - todaySleepTotal);
 
   if (activeNap) {
+    const activeStart = new Date(activeNap.start);
     const plannedLength = clamp(Math.min(model.napBase, Math.max(remainingDaySleepBudget, 25)), 25, 180);
-    const end = new Date(activeNap.startDate.getTime() + plannedLength * 60000);
+    const end = new Date(activeStart.getTime() + plannedLength * 60000);
     predictions.push({
       kind: "active",
-      start: activeNap.startDate,
+      start: activeStart,
       end,
-      title: "Sleeping now",
-      targetNap: plannedLength,
+      title: "Current nap",
       note: `Likely to end around ${formatClock(end)}.`,
     });
   }
 
   let cursor = activeNap
-    ? new Date(activeNap.startDate.getTime() + model.napBase * 60000)
+    ? new Date(new Date(activeNap.start).getTime() + model.napBase * 60000)
     : getCurrentWakeAnchor(todayNaps, dayStart);
   let napIndex = todayNaps.filter((nap) => nap.endDate).length + (activeNap ? 1 : 0);
   let shortNapAdjustment = 0;
@@ -416,7 +663,7 @@ function buildPredictions() {
     const progression = clamp(napIndex / Math.max(1, model.prior.naps), 0, 1);
     const wakeFactor = 0.86 + 0.24 * Math.sqrt(progression);
     const roughStart = new Date(cursor.getTime() + model.wakeBase * wakeFactor * 60000);
-    const circadianMinutes = circadianAdjustment(roughStart, state.profile.ageMonths);
+    const circadianMinutes = circadianAdjustment(roughStart, model.ageInfo.ageMonths);
     const sleepPressureBudget =
       projectedDaySleep >= model.prior.totalDaySleep
         ? Math.min(24, (projectedDaySleep - model.prior.totalDaySleep) * 0.18)
@@ -446,8 +693,6 @@ function buildPredictions() {
       start,
       end,
       title: napIndex >= model.prior.naps - 1 ? "Last nap" : `Nap ${napIndex + 1}`,
-      targetWake,
-      targetNap,
       note: `${formatDuration(targetNap)} sleep after about ${formatDuration(targetWake)} awake.`,
     });
 
@@ -457,14 +702,58 @@ function buildPredictions() {
     shortNapAdjustment = 0;
   }
 
-  return { predictions, model, todaySleepTotal };
+  return { predictions, model };
+}
+
+function getNextFeedPrediction() {
+  const feeds = getParsedFeeds();
+  const model = getFeedPredictionModel();
+  const lastFeed = feeds[feeds.length - 1] || null;
+
+  if (!lastFeed) {
+    return {
+      model,
+      lastFeed: null,
+      nextTime: null,
+      suggestion: "Log the first feed to start feed timing predictions.",
+    };
+  }
+
+  const nextTime = new Date(lastFeed.timeDate.getTime() + model.intervalMinutes * 60000);
+  let sideSuggestion = "";
+  if (lastFeed.kind === "left") {
+    sideSuggestion = "Likely right side next.";
+  } else if (lastFeed.kind === "right") {
+    sideSuggestion = "Likely left side next.";
+  } else if (lastFeed.kind === "both") {
+    sideSuggestion = "Likely whichever side feels fullest next.";
+  } else {
+    sideSuggestion = "Bottle was last, so the next method may vary.";
+  }
+
+  return {
+    model,
+    lastFeed,
+    nextTime,
+    suggestion: sideSuggestion,
+  };
+}
+
+function getNightDurationMinutes(night) {
+  const endDate = night.endDate || now();
+  const totalMinutes = Math.max(0, (endDate - night.startDate) / 60000);
+  const awakeMinutes = (night.breaks || []).reduce((sum, nightBreak) => {
+    const breakEnd = nightBreak.endDate || endDate;
+    return sum + Math.max(0, (breakEnd - nightBreak.startDate) / 60000);
+  }, 0);
+  return Math.max(0, totalMinutes - awakeMinutes);
 }
 
 function buildSleepPlan() {
   const { dayStart, dayEnd } = getTodayBounds();
   const tomorrowWake = new Date(startOfDay(dayStart).getTime() + MS_IN_DAY + parseTime(state.profile.wakeTime) * 60000);
-  const { predictions, model } = buildPredictions();
-
+  const { predictions, model } = buildSleepPredictions();
+  const activeNight = getActiveNightEvent();
   const blocks = predictions.map((prediction) => ({
     kind: prediction.kind,
     start: prediction.start,
@@ -473,7 +762,15 @@ function buildSleepPlan() {
     note: prediction.note,
   }));
 
-  if (tomorrowWake > now()) {
+  if (activeNight) {
+    blocks.push({
+      kind: "night-active",
+      start: activeNight.startDate,
+      end: tomorrowWake,
+      title: "Night sleep",
+      note: `Night started at ${formatClock(activeNight.startDate)}.`,
+    });
+  } else if (tomorrowWake > now()) {
     blocks.push({
       kind: "night",
       start: dayEnd,
@@ -495,52 +792,65 @@ function buildSleepPlan() {
 }
 
 function getNextSleepSummary(plan) {
-  const active = plan.blocks.find((block) => block.kind === "active" && block.end > now());
-  if (active) {
+  const currentNight = plan.blocks.find((block) => block.kind === "night-active");
+  if (currentNight && currentNight.start <= now()) {
     return {
-      main: `${state.profile.babyName} is sleeping now`,
-      note: `Likely to wake around ${formatClock(active.end)}.`,
+      main: `${state.profile.babyName} is in night sleep`,
+      note: `Night started at ${formatClock(currentNight.start)}.`,
+    };
+  }
+
+  const activeNap = plan.blocks.find((block) => block.kind === "active" && block.end > now());
+  if (activeNap) {
+    return {
+      main: `${state.profile.babyName} is napping now`,
+      note: `Likely awake around ${formatClock(activeNap.end)}.`,
     };
   }
 
   const nextBlock = plan.blocks.find((block) => block.end > now());
   if (!nextBlock) {
     return {
-      main: "No more sleep blocks today",
-      note: "Tomorrow's schedule will begin from the next wake time.",
-    };
-  }
-
-  if (nextBlock.kind === "night") {
-    return {
-      main: `Night sleep around ${formatClock(nextBlock.start)}`,
-      note: `Expected until about ${formatClock(nextBlock.end)} tomorrow morning.`,
+      main: "No more sleep blocks yet",
+      note: "New logs will keep adjusting the rest of the day.",
     };
   }
 
   return {
     main: `${nextBlock.title} around ${formatClock(nextBlock.start)}`,
-    note: `${formatDuration((nextBlock.end - nextBlock.start) / 60000)} of likely sleep.`,
+    note: nextBlock.note,
   };
 }
 
-function getFocusCopy(plan) {
-  const activeNap = getActiveNapEvent();
-  if (activeNap) {
+function getQuickNapCopy(plan) {
+  const activeNight = getActiveNightEvent();
+  if (activeNight) {
     return {
-      headline: `${state.profile.babyName} is sleeping`,
-      note: `Started at ${formatClock(activeNap.startDate)}. Tap once when the nap ends.`,
-      button: "End nap now",
+      headline: "Night is active",
+      note: "End the night with Final wake before starting a daytime nap.",
+      button: "Night in progress",
+      disabled: true,
     };
   }
 
-  const nextBlock = plan.blocks.find((block) => block.kind !== "night" && block.end > now());
-  if (nextBlock) {
-    const minutesUntil = Math.round((nextBlock.start - now()) / 60000);
+  const activeNap = getActiveNap();
+  if (activeNap) {
     return {
-      headline: `Next nap around ${formatClock(nextBlock.start)}`,
+      headline: `${state.profile.babyName} is napping`,
+      note: `Started at ${formatClock(activeNap.start)}. Tap when the nap ends.`,
+      button: "End nap now",
+      disabled: false,
+    };
+  }
+
+  const nextNap = plan.blocks.find((block) => block.kind === "predicted" && block.end > now());
+  if (nextNap) {
+    const minutesUntil = Math.round((nextNap.start - now()) / 60000);
+    return {
+      headline: `Next nap around ${formatClock(nextNap.start)}`,
       note: minutesUntil <= 0 ? "Sleep could happen any time now." : `Likely in about ${formatDuration(minutesUntil)}.`,
       button: "Start nap now",
+      disabled: false,
     };
   }
 
@@ -548,6 +858,53 @@ function getFocusCopy(plan) {
     headline: `Next big sleep around ${formatClock(plan.dayEnd)}`,
     note: "If a surprise nap happens, you can still log it here.",
     button: "Start nap now",
+    disabled: false,
+  };
+}
+
+function getQuickNightCopy() {
+  const activeNight = getActiveNightEvent();
+  if (!activeNight) {
+    return {
+      headline: "Night sleep not started",
+      note: "At bedtime, start the night. Log wake periods only if the baby fully wakes.",
+      primary: "Start night",
+      secondary: null,
+    };
+  }
+
+  const activeBreak = getActiveNightBreak(activeNight);
+  if (activeBreak) {
+    return {
+      headline: `${state.profile.babyName} is awake`,
+      note: `Wake started at ${formatClock(activeBreak.startDate)}. Tap when sleep resumes, or use Final wake for the morning.`,
+      primary: "Back asleep",
+      secondary: "Final wake",
+    };
+  }
+
+  return {
+    headline: `Night started at ${formatClock(activeNight.startDate)}`,
+    note: "If the baby wakes, tap Log wake. Use Final wake when the night is over.",
+    primary: "Log wake",
+    secondary: "Final wake",
+  };
+}
+
+function getQuickFeedCopy(feedPrediction) {
+  const feeds = getParsedFeeds();
+  const lastFeed = feeds[feeds.length - 1];
+  if (!lastFeed) {
+    return {
+      headline: "Log a feed in one tap",
+      note: "Choose the side or method used for this feed.",
+    };
+  }
+
+  const nextText = feedPrediction.nextTime ? `Next likely around ${formatClock(feedPrediction.nextTime)}.` : "Prediction is still learning.";
+  return {
+    headline: `Last feed at ${formatClock(lastFeed.timeDate)}`,
+    note: `${formatFeedKind(lastFeed.kind)}. ${nextText}`,
   };
 }
 
@@ -555,21 +912,21 @@ function getPlanSegments(plan) {
   const rangeStart = plan.dayStart;
   const rangeEnd = plan.tomorrowWake;
 
-  const loggedSegments = getTodayEvents().map((nap) => ({
+  const loggedNapSegments = getTodayNaps().map((nap) => ({
     kind: nap.endDate ? "logged" : "active",
     start: nap.startDate,
     end: nap.endDate || now(),
   }));
 
   const futureSegments = plan.blocks
-    .filter((block) => block.kind === "predicted" || block.kind === "night")
+    .filter((block) => ["predicted", "night", "night-active"].includes(block.kind))
     .map((block) => ({
-      kind: block.kind,
+      kind: block.kind === "night-active" ? "night" : block.kind,
       start: block.start,
       end: block.end,
     }));
 
-  return [...loggedSegments, ...futureSegments]
+  return [...loggedNapSegments, ...futureSegments]
     .filter((segment) => segment.end > rangeStart && segment.start < rangeEnd)
     .map((segment) => ({
       ...segment,
@@ -587,9 +944,7 @@ function renderPlanScale(plan) {
     { label: `Wake ${formatClock(plan.tomorrowWake)}` },
   ];
 
-  els.planScale.innerHTML = markers
-    .map((marker) => `<div class="scale-label">${marker.label}</div>`)
-    .join("");
+  els.planScale.innerHTML = markers.map((marker) => `<div class="scale-label">${marker.label}</div>`).join("");
 }
 
 function renderPlanTrack(plan) {
@@ -598,12 +953,11 @@ function renderPlanTrack(plan) {
   const rangeEnd = plan.tomorrowWake;
 
   if (!segments.length) {
-    els.planTrack.innerHTML = `<div class="plan-track-empty">No naps logged yet. The bar will fill in as naps happen and predictions update.</div>`;
+    els.planTrack.innerHTML = `<div class="plan-track-empty">No sleep logged yet. Naps and tonight's sleep will appear here as you go.</div>`;
     return;
   }
 
   const nowPosition = clamp(((now() - rangeStart) / (rangeEnd - rangeStart)) * 100, 0, 100);
-
   const segmentMarkup = segments
     .map(
       (segment) =>
@@ -637,86 +991,174 @@ function renderUpcoming(plan) {
     .join("");
 }
 
-function getNapsForDate(dateValue) {
+function buildHistoryEntries(dateValue) {
   const rangeStart = combineDateAndTime(dateValue, "00:00");
   const rangeEnd = addDays(rangeStart, 1);
-  return getParsedNaps().filter((nap) => nap.startDate >= rangeStart && nap.startDate < rangeEnd);
+  const entries = [];
+
+  getParsedNaps()
+    .filter((nap) => nap.startDate >= rangeStart && nap.startDate < rangeEnd)
+    .forEach((nap) => {
+      entries.push({
+        id: nap.id,
+        type: "nap",
+        sortDate: nap.startDate,
+        timeLabel: nap.endDate
+          ? `${formatClock(nap.startDate)} - ${formatClock(nap.endDate)}`
+          : `${formatClock(nap.startDate)} - in progress`,
+        title: "Nap",
+        note: nap.endDate
+          ? `${formatDuration((nap.endDate - nap.startDate) / 60000)} total sleep.`
+          : "Currently still running.",
+      });
+    });
+
+  getParsedFeeds()
+    .filter((feed) => feed.timeDate >= rangeStart && feed.timeDate < rangeEnd)
+    .forEach((feed) => {
+      entries.push({
+        id: feed.id,
+        type: "feed",
+        sortDate: feed.timeDate,
+        timeLabel: formatClock(feed.timeDate),
+        title: "Feed",
+        note: formatFeedKind(feed.kind),
+      });
+    });
+
+  getParsedNights()
+    .filter((night) => {
+      const endDate = night.endDate || now();
+      return night.startDate < rangeEnd && endDate > rangeStart;
+    })
+    .forEach((night) => {
+      const visibleStart = new Date(Math.max(night.startDate.getTime(), rangeStart.getTime()));
+      const breakCount = (night.breaks || []).length;
+      entries.push({
+        id: night.id,
+        type: "night",
+        sortDate: visibleStart,
+        timeLabel: `${formatClock(night.startDate)} - ${night.endDate ? formatClock(night.endDate) : "in progress"}`,
+        title: "Night sleep",
+        note: `${formatDuration(getNightDurationMinutes(night))} asleep${breakCount ? ` with ${breakCount} wake break${breakCount === 1 ? "" : "s"}` : ""}.`,
+      });
+    });
+
+  return entries.sort((a, b) => a.sortDate - b.sortDate);
 }
 
 function renderHistory() {
-  const naps = getNapsForDate(ui.historyDate);
-  const finishedMinutes = naps
-    .filter((nap) => nap.endDate)
-    .reduce((sum, nap) => sum + (nap.endDate - nap.startDate) / 60000, 0);
+  const entries = buildHistoryEntries(ui.historyDate);
+  const napCount = entries.filter((entry) => entry.type === "nap").length;
+  const feedCount = entries.filter((entry) => entry.type === "feed").length;
+  const nightCount = entries.filter((entry) => entry.type === "night").length;
 
-  if (!naps.length) {
-    els.historySummary.textContent = `${formatDateLabel(ui.historyDate)} · no naps logged`;
-    els.historyList.innerHTML = `<div class="empty-state">No naps logged for this date yet.</div>`;
+  if (!entries.length) {
+    els.historySummary.textContent = `${formatDateLabel(ui.historyDate)} · no logs yet`;
+    els.historyList.innerHTML = `<div class="empty-state">No naps, night sleep, or feeds logged for this date yet.</div>`;
     return;
   }
 
-  els.historySummary.textContent = `${formatDateLabel(ui.historyDate)} · ${naps.length} nap${
-    naps.length === 1 ? "" : "s"
-  } · ${formatDuration(finishedMinutes)} total`;
+  const summaryParts = [];
+  if (napCount) {
+    summaryParts.push(`${napCount} nap${napCount === 1 ? "" : "s"}`);
+  }
+  if (nightCount) {
+    summaryParts.push(`${nightCount} night${nightCount === 1 ? "" : "s"}`);
+  }
+  if (feedCount) {
+    summaryParts.push(`${feedCount} feed${feedCount === 1 ? "" : "s"}`);
+  }
 
-  els.historyList.innerHTML = naps
-    .map((nap, index) => {
-      const timeLabel = nap.endDate
-        ? `${formatClock(nap.startDate)} - ${formatClock(nap.endDate)}`
-        : `${formatClock(nap.startDate)} - in progress`;
-      const note = nap.endDate
-        ? `${formatDuration((nap.endDate - nap.startDate) / 60000)} total sleep.`
-        : "Currently still running.";
-
-      return `
+  els.historySummary.textContent = `${formatDateLabel(ui.historyDate)} · ${summaryParts.join(" · ")}`;
+  els.historyList.innerHTML = entries
+    .map(
+      (entry) => `
         <article class="history-item">
-          <div class="history-time">${timeLabel}</div>
+          <div class="history-time">${entry.timeLabel}</div>
           <div class="history-copy">
-            <strong>Nap ${index + 1}</strong>
-            <p>${note}</p>
+            <strong>${entry.title}</strong>
+            <p>${entry.note}</p>
           </div>
-          <button class="history-delete" type="button" data-delete-nap="${nap.id}">Delete</button>
+          <button class="history-delete" type="button" data-delete-type="${entry.type}" data-delete-id="${entry.id}">Delete</button>
         </article>
-      `;
-    })
+      `,
+    )
     .join("");
 }
 
 function syncForm() {
   const { profile } = state;
   els.babyNameInput.value = profile.babyName;
-  els.ageMonthsInput.value = profile.ageMonths;
+  els.dateOfBirthInput.value = profile.dateOfBirth;
+  els.dueDateInput.value = profile.dueDate;
+  els.ageMonthsInput.value = profile.ageMonthsFallback;
   els.wakeTimeInput.value = profile.wakeTime;
   els.bedTimeInput.value = profile.bedTime;
   els.baselineWakeInput.value = profile.baselineWake;
   els.baselineNapInput.value = profile.baselineNap;
+  els.baselineFeedInput.value = profile.baselineFeedInterval;
 }
 
 function syncDateInputs() {
   els.historyDateInput.value = ui.historyDate;
-  els.manualDateInput.value = ui.historyDate;
+  els.manualNapDateInput.value = ui.historyDate;
+  els.manualFeedDateInput.value = ui.historyDate;
 }
 
 function render() {
-  const plan = buildSleepPlan();
-  const summary = getNextSleepSummary(plan);
-  const focus = getFocusCopy(plan);
+  const sleepPlan = buildSleepPlan();
+  const sleepSummary = getNextSleepSummary(sleepPlan);
+  const napCopy = getQuickNapCopy(sleepPlan);
+  const nightCopy = getQuickNightCopy();
+  const feedPrediction = getNextFeedPrediction();
+  const feedCopy = getQuickFeedCopy(feedPrediction);
+  const ageInfo = getProfileAgeInfo();
 
-  els.headline.textContent = focus.headline;
-  els.statusNote.textContent = focus.note;
-  els.napToggleButton.textContent = focus.button;
-  els.nextSleepMain.textContent = summary.main;
-  els.nextSleepNote.textContent = summary.note;
+  els.napHeadline.textContent = napCopy.headline;
+  els.napNote.textContent = napCopy.note;
+  els.napToggleButton.textContent = napCopy.button;
+  els.napToggleButton.disabled = napCopy.disabled;
 
-  renderPlanScale(plan);
-  renderPlanTrack(plan);
-  renderUpcoming(plan);
+  els.nightHeadline.textContent = nightCopy.headline;
+  els.nightNote.textContent = nightCopy.note;
+  els.nightPrimaryButton.textContent = nightCopy.primary;
+  els.nightSecondaryButton.hidden = !nightCopy.secondary;
+  if (nightCopy.secondary) {
+    els.nightSecondaryButton.textContent = nightCopy.secondary;
+  }
+
+  els.feedHeadline.textContent = feedCopy.headline;
+  els.feedQuickNote.textContent = feedCopy.note;
+  els.nextSleepMain.textContent = sleepSummary.main;
+  els.nextSleepNote.textContent = sleepSummary.note;
+
+  if (feedPrediction.nextTime) {
+    const minutesAway = Math.round((feedPrediction.nextTime - now()) / 60000);
+    els.nextFeedMain.textContent = `Around ${formatClock(feedPrediction.nextTime)}`;
+    els.nextFeedNote.textContent =
+      (minutesAway <= 0 ? "Feed could be due now." : `Likely in about ${formatDuration(minutesAway)}.`) +
+      ` ${feedPrediction.suggestion}`;
+  } else {
+    els.nextFeedMain.textContent = "Waiting for feed data";
+    els.nextFeedNote.textContent = feedPrediction.suggestion;
+  }
+
+  els.ageSummary.textContent = ageInfo.summary;
+
+  renderPlanScale(sleepPlan);
+  renderPlanTrack(sleepPlan);
+  renderUpcoming(sleepPlan);
   renderHistory();
   saveState();
 }
 
 function startNap() {
   if (getActiveNap()) {
+    return;
+  }
+  if (getActiveNight()) {
+    window.alert("End the active night before starting a daytime nap.");
     return;
   }
 
@@ -737,13 +1179,86 @@ function endNap() {
   render();
 }
 
+function startNight() {
+  if (getActiveNight()) {
+    return;
+  }
+  if (getActiveNap()) {
+    window.alert("End the current nap before starting night sleep.");
+    return;
+  }
+
+  state.nights.push({
+    id: uid(),
+    start: now().toISOString(),
+    end: null,
+    breaks: [],
+  });
+  render();
+}
+
+function startNightWake() {
+  const activeNight = getActiveNight();
+  if (!activeNight) {
+    return;
+  }
+  const activeBreak = (activeNight.breaks || []).find((nightBreak) => !nightBreak.end);
+  if (activeBreak) {
+    return;
+  }
+
+  activeNight.breaks.push({
+    id: uid(),
+    start: now().toISOString(),
+    end: null,
+  });
+  render();
+}
+
+function endNightWake() {
+  const activeNight = getActiveNight();
+  if (!activeNight) {
+    return;
+  }
+  const activeBreak = (activeNight.breaks || []).find((nightBreak) => !nightBreak.end);
+  if (!activeBreak) {
+    return;
+  }
+  activeBreak.end = now().toISOString();
+  render();
+}
+
+function endNight() {
+  const activeNight = getActiveNight();
+  if (!activeNight) {
+    return;
+  }
+  const activeBreak = (activeNight.breaks || []).find((nightBreak) => !nightBreak.end);
+  if (activeBreak) {
+    activeBreak.end = now().toISOString();
+  }
+  activeNight.end = now().toISOString();
+  render();
+}
+
+function addFeed(kind, timeDate = now(), shouldRender = true) {
+  state.feeds.push({
+    id: uid(),
+    time: new Date(timeDate).toISOString(),
+    kind,
+  });
+  if (shouldRender) {
+    render();
+  }
+}
+
 function addManualNap(dateValue, startTime, endTime) {
   const start = combineDateAndTime(dateValue, startTime);
   const end = combineDateAndTime(dateValue, endTime);
 
   if (end <= start) {
     window.alert("End time needs to be after the start time.");
-    return;
+    return false;
   }
 
   state.naps.push({
@@ -751,13 +1266,27 @@ function addManualNap(dateValue, startTime, endTime) {
     start: start.toISOString(),
     end: end.toISOString(),
   });
-
   ui.historyDate = dateValue;
+  render();
+  return true;
+}
+
+function addManualFeed(dateValue, timeValue, kind) {
+  ui.historyDate = dateValue;
+  addFeed(kind, combineDateAndTime(dateValue, timeValue), false);
   render();
 }
 
-function deleteNap(id) {
-  state.naps = state.naps.filter((nap) => nap.id !== id);
+function deleteEntry(type, id) {
+  if (type === "nap") {
+    state.naps = state.naps.filter((nap) => nap.id !== id);
+  }
+  if (type === "night") {
+    state.nights = state.nights.filter((night) => night.id !== id);
+  }
+  if (type === "feed") {
+    state.feeds = state.feeds.filter((feed) => feed.id !== id);
+  }
   render();
 }
 
@@ -765,7 +1294,7 @@ function exportData() {
   const payload = {
     exportedAt: new Date().toISOString(),
     app: "napper-web",
-    version: 1,
+    version: 2,
     state,
   };
 
@@ -800,11 +1329,46 @@ els.napToggleButton.addEventListener("click", () => {
   }
 });
 
-els.manualLogForm.addEventListener("submit", (event) => {
+els.nightPrimaryButton.addEventListener("click", () => {
+  const activeNight = getActiveNightEvent();
+  if (!activeNight) {
+    startNight();
+    return;
+  }
+
+  if (getActiveNightBreak(activeNight)) {
+    endNightWake();
+  } else {
+    startNightWake();
+  }
+});
+
+els.nightSecondaryButton.addEventListener("click", endNight);
+
+els.feedLeftButton.addEventListener("click", () => addFeed("left"));
+els.feedRightButton.addEventListener("click", () => addFeed("right"));
+els.feedBothButton.addEventListener("click", () => addFeed("both"));
+els.feedBottleButton.addEventListener("click", () => addFeed("bottle"));
+
+els.manualNapForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  addManualNap(els.manualDateInput.value, els.manualStartInput.value, els.manualEndInput.value);
-  els.manualStartInput.value = "";
-  els.manualEndInput.value = "";
+  const saved = addManualNap(
+    els.manualNapDateInput.value,
+    els.manualNapStartInput.value,
+    els.manualNapEndInput.value,
+  );
+  if (saved) {
+    els.manualNapStartInput.value = "";
+    els.manualNapEndInput.value = "";
+    syncDateInputs();
+  }
+});
+
+els.manualFeedForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  addManualFeed(els.manualFeedDateInput.value, els.manualFeedTimeInput.value, els.manualFeedKindInput.value);
+  els.manualFeedTimeInput.value = "";
+  syncDateInputs();
 });
 
 els.historyDateInput.addEventListener("change", (event) => {
@@ -814,19 +1378,19 @@ els.historyDateInput.addEventListener("change", (event) => {
 });
 
 els.historyList.addEventListener("click", (event) => {
-  const button = event.target.closest("[data-delete-nap]");
+  const button = event.target.closest("[data-delete-id]");
   if (!button) {
     return;
   }
 
-  if (window.confirm("Delete this nap?")) {
-    deleteNap(button.dataset.deleteNap);
+  if (window.confirm("Delete this entry?")) {
+    deleteEntry(button.dataset.deleteType, button.dataset.deleteId);
   }
 });
 
 els.exportButton.addEventListener("click", exportData);
 els.resetAllButton.addEventListener("click", () => {
-  if (window.confirm("Reset the profile and remove all saved nap data on this device?")) {
+  if (window.confirm("Reset the profile and remove all saved data on this device?")) {
     resetAll();
   }
 });
@@ -851,11 +1415,14 @@ els.settingsForm.addEventListener("submit", (event) => {
   event.preventDefault();
   state.profile = {
     babyName: els.babyNameInput.value.trim() || "Baby",
-    ageMonths: clamp(Number(els.ageMonthsInput.value) || 0, 0, 36),
+    dateOfBirth: els.dateOfBirthInput.value || "",
+    dueDate: els.dueDateInput.value || "",
+    ageMonthsFallback: clamp(Number(els.ageMonthsInput.value) || 0, 0, 36),
     wakeTime: els.wakeTimeInput.value || "07:00",
     bedTime: els.bedTimeInput.value || "19:30",
     baselineWake: clamp(Number(els.baselineWakeInput.value) || 60, 30, 420),
     baselineNap: clamp(Number(els.baselineNapInput.value) || 60, 20, 240),
+    baselineFeedInterval: clamp(Number(els.baselineFeedInput.value) || 180, 60, 360),
   };
   syncForm();
   render();

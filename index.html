@@ -9,7 +9,7 @@
     <title>Napper Web</title>
     <meta
       name="description"
-      content="Simple baby nap logger with easy past-nap entry, clear sleep predictions, and date-based history."
+      content="Simple baby sleep and feed logger with quick nap, night, and feed tracking."
     />
     <meta name="theme-color" content="#f4efe8" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -24,75 +24,87 @@
     <main class="app-shell">
       <header class="app-header">
         <div class="header-copy">
-          <p class="eyebrow">Simple nap log</p>
+          <p class="eyebrow">Simple sleep + feed log</p>
           <h1>Napper Web</h1>
           <p class="lede">
-            Log naps quickly, add naps that already happened, and see what sleep
-            is likely next.
+            Log naps, nights, and feeds quickly. See what sleep and feeding are
+            likely next, and review everything by date.
           </p>
         </div>
         <button class="install-button" id="installButton" hidden>Install</button>
       </header>
 
-      <section class="panel focus-panel">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">Right now</p>
-            <h2 id="headline">Ready to log the next nap</h2>
-          </div>
-        </div>
-
-        <p class="focus-note" id="statusNote">
-          Tap once when a nap starts, then tap again when it ends.
-        </p>
-
-        <div class="focus-actions">
-          <button class="primary-action" id="napToggleButton">Start nap now</button>
-        </div>
-      </section>
-
       <section class="panel quick-log-panel">
         <div class="panel-heading">
           <div>
-            <p class="eyebrow">Past nap</p>
-            <h2>Add a nap that already happened</h2>
+            <p class="eyebrow">Quick log</p>
+            <h2>What is happening right now?</h2>
           </div>
         </div>
 
-        <form id="manualLogForm" class="manual-form">
-          <label>
-            Date
-            <input id="manualDateInput" name="manualDate" type="date" required />
-          </label>
-          <label>
-            Start
-            <input id="manualStartInput" name="manualStart" type="time" required />
-          </label>
-          <label>
-            End
-            <input id="manualEndInput" name="manualEnd" type="time" required />
-          </label>
-          <button class="secondary-action" type="submit">Save nap</button>
-        </form>
+        <div class="quick-grid">
+          <article class="quick-card">
+            <p class="eyebrow">Nap</p>
+            <h3 id="napHeadline">Ready for the next nap</h3>
+            <p class="quick-note" id="napNote">
+              Tap when a nap starts, then tap again when it ends.
+            </p>
+            <button class="primary-action" id="napToggleButton">Start nap now</button>
+          </article>
+
+          <article class="quick-card">
+            <p class="eyebrow">Night</p>
+            <h3 id="nightHeadline">Night sleep not started</h3>
+            <p class="quick-note" id="nightNote">
+              At bedtime, start the night. If the baby wakes, log the wake and
+              tap again when they are back asleep.
+            </p>
+            <div class="stacked-actions">
+              <button class="secondary-action" id="nightPrimaryButton">Start night</button>
+              <button class="secondary-action" id="nightSecondaryButton" hidden>Final wake</button>
+            </div>
+          </article>
+
+          <article class="quick-card">
+            <p class="eyebrow">Feed</p>
+            <h3 id="feedHeadline">Log a feed in one tap</h3>
+            <p class="quick-note" id="feedQuickNote">
+              Choose the side or method used for this feed.
+            </p>
+            <div class="feed-button-grid">
+              <button class="secondary-action" id="feedLeftButton" type="button">Left</button>
+              <button class="secondary-action" id="feedRightButton" type="button">Right</button>
+              <button class="secondary-action" id="feedBothButton" type="button">Both</button>
+              <button class="secondary-action" id="feedBottleButton" type="button">Bottle</button>
+            </div>
+          </article>
+        </div>
       </section>
 
       <section class="panel plan-panel">
         <div class="panel-heading">
           <div>
-            <p class="eyebrow">Sleep plan</p>
+            <p class="eyebrow">Predictions</p>
             <h2>Today and tonight</h2>
           </div>
         </div>
 
-        <article class="next-sleep-card">
-          <p class="eyebrow">Next sleep</p>
-          <h3 id="nextSleepMain">Waiting for the first nap</h3>
-          <p id="nextSleepNote">Log a nap and the schedule will adapt.</p>
-        </article>
+        <div class="summary-grid">
+          <article class="next-card">
+            <p class="eyebrow">Next sleep</p>
+            <h3 id="nextSleepMain">Waiting for the first nap</h3>
+            <p id="nextSleepNote">Log a nap and the schedule will adapt.</p>
+          </article>
+
+          <article class="next-card">
+            <p class="eyebrow">Next feed</p>
+            <h3 id="nextFeedMain">Waiting for feed data</h3>
+            <p id="nextFeedNote">Log a few feeds and the timing will start to learn.</p>
+          </article>
+        </div>
 
         <div class="plan-scale" id="planScale"></div>
         <div class="plan-track" id="planTrack" aria-label="Sleep plan visual"></div>
-
         <div class="upcoming-list" id="upcomingList"></div>
       </section>
 
@@ -100,7 +112,7 @@
         <div class="panel-heading history-heading">
           <div>
             <p class="eyebrow">History</p>
-            <h2>See naps by date</h2>
+            <h2>See one day at a time</h2>
           </div>
           <label class="date-picker">
             <span class="sr-only">Choose date</span>
@@ -113,7 +125,57 @@
       </section>
 
       <details class="panel details-panel">
+        <summary>Add a past nap or feed</summary>
+
+        <div class="past-grid">
+          <form id="manualNapForm" class="manual-form">
+            <h3>Past nap</h3>
+            <label>
+              Date
+              <input id="manualNapDateInput" name="manualNapDate" type="date" required />
+            </label>
+            <label>
+              Start
+              <input id="manualNapStartInput" name="manualNapStart" type="time" required />
+            </label>
+            <label>
+              End
+              <input id="manualNapEndInput" name="manualNapEnd" type="time" required />
+            </label>
+            <button class="secondary-action" type="submit">Save nap</button>
+          </form>
+
+          <form id="manualFeedForm" class="manual-form">
+            <h3>Past feed</h3>
+            <label>
+              Date
+              <input id="manualFeedDateInput" name="manualFeedDate" type="date" required />
+            </label>
+            <label>
+              Time
+              <input id="manualFeedTimeInput" name="manualFeedTime" type="time" required />
+            </label>
+            <label>
+              Type
+              <select id="manualFeedKindInput" name="manualFeedKind">
+                <option value="left">Left</option>
+                <option value="right">Right</option>
+                <option value="both">Both</option>
+                <option value="bottle">Bottle</option>
+              </select>
+            </label>
+            <button class="secondary-action" type="submit">Save feed</button>
+          </form>
+        </div>
+      </details>
+
+      <details class="panel details-panel">
         <summary>Sleep settings</summary>
+
+        <p class="details-note" id="ageSummary">
+          Add date of birth for more exact age-based predictions. Add due date
+          too if corrected age matters.
+        </p>
 
         <form id="settingsForm" class="settings-form">
           <label>
@@ -121,7 +183,15 @@
             <input id="babyNameInput" name="babyName" type="text" maxlength="24" />
           </label>
           <label>
-            Age (months)
+            Date of birth
+            <input id="dateOfBirthInput" name="dateOfBirth" type="date" />
+          </label>
+          <label>
+            Due date (optional)
+            <input id="dueDateInput" name="dueDate" type="date" />
+          </label>
+          <label>
+            Age in months (fallback)
             <input id="ageMonthsInput" name="ageMonths" type="number" min="0" max="36" />
           </label>
           <label>
@@ -152,12 +222,22 @@
               max="240"
             />
           </label>
+          <label>
+            Typical feed interval (minutes)
+            <input
+              id="baselineFeedInput"
+              name="baselineFeed"
+              type="number"
+              min="60"
+              max="360"
+            />
+          </label>
           <button class="secondary-action" type="submit">Save settings</button>
         </form>
 
         <p class="details-note">
-          Predictions learn from recent naps, but these settings give the app a
-          starting point.
+          Date of birth improves age-based sleep priors. Due date only matters
+          if you want corrected age used for early babies.
         </p>
       </details>
 
@@ -165,7 +245,7 @@
         <summary>Backup and local data</summary>
 
         <p class="details-note">
-          Nap logs stay in this browser on this device unless you export them.
+          Logs stay in this browser on this device unless you export them.
         </p>
 
         <div class="storage-actions">

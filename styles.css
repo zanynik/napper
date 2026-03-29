@@ -1,7 +1,6 @@
 :root {
   --bg: #f4efe8;
   --panel: rgba(255, 251, 245, 0.9);
-  --panel-strong: #fffdf9;
   --line: rgba(92, 74, 56, 0.12);
   --line-strong: rgba(92, 74, 56, 0.22);
   --text: #2e271f;
@@ -10,9 +9,7 @@
   --accent-strong: #b85733;
   --sky: #b8d6e3;
   --sky-strong: #79aec4;
-  --sage: #d9e3d0;
   --night: #2f3f63;
-  --night-soft: #cad3eb;
   --danger: #a24833;
   --shadow: 0 18px 44px rgba(80, 61, 42, 0.12);
   --font-body: "Avenir Next", "Segoe UI", sans-serif;
@@ -39,6 +36,7 @@ body {
 
 button,
 input,
+select,
 summary {
   font: inherit;
 }
@@ -61,7 +59,7 @@ summary {
 }
 
 .app-shell {
-  width: min(860px, calc(100vw - 24px));
+  width: min(940px, calc(100vw - 24px));
   margin: 0 auto;
   padding: max(22px, env(safe-area-inset-top)) 0 max(32px, env(safe-area-inset-bottom));
 }
@@ -69,7 +67,6 @@ summary {
 .app-header,
 .panel-heading,
 .history-heading,
-.history-row,
 .upcoming-card,
 .history-item {
   display: flex;
@@ -84,7 +81,7 @@ summary {
 }
 
 .header-copy {
-  max-width: 560px;
+  max-width: 620px;
 }
 
 .eyebrow {
@@ -116,20 +113,20 @@ h2 {
 }
 
 h3 {
-  font-size: 1.35rem;
-  line-height: 1.1;
+  font-size: 1.25rem;
+  line-height: 1.12;
 }
 
 .lede,
-.focus-note,
-.next-sleep-card p,
+.quick-note,
+.next-card p,
 .details-note,
 .history-summary {
   color: var(--muted);
 }
 
 .lede {
-  max-width: 42ch;
+  max-width: 44ch;
   margin: 12px 0 0;
   font-size: 1rem;
   line-height: 1.55;
@@ -140,7 +137,7 @@ h3 {
 .date-picker input {
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.84);
   color: var(--text);
   transition:
     transform 140ms ease,
@@ -161,6 +158,8 @@ h3 {
 .date-picker input:focus,
 input:hover,
 input:focus,
+select:hover,
+select:focus,
 summary:hover {
   border-color: var(--line-strong);
   box-shadow: 0 10px 24px rgba(86, 66, 46, 0.08);
@@ -176,24 +175,46 @@ summary:hover {
   backdrop-filter: blur(14px);
 }
 
-.focus-panel {
+.quick-log-panel {
   background:
     radial-gradient(circle at top right, rgba(255, 255, 255, 0.92), transparent 40%),
     linear-gradient(135deg, rgba(255, 243, 235, 0.98), rgba(245, 248, 244, 0.98));
 }
 
-.focus-note {
-  margin: 10px 0 0;
-  font-size: 1rem;
-  line-height: 1.5;
+.quick-grid,
+.summary-grid,
+.past-grid {
+  display: grid;
+  gap: 14px;
 }
 
-.focus-actions {
-  margin-top: 18px;
+.quick-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 16px;
+}
+
+.summary-grid,
+.past-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.quick-card,
+.next-card {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.quick-note,
+.next-card p {
+  margin: 10px 0 0;
+  line-height: 1.5;
 }
 
 .primary-action {
   width: 100%;
+  margin-top: 18px;
   padding: 18px 22px;
   border: 0;
   border-radius: 22px;
@@ -208,58 +229,33 @@ summary:hover {
     filter 140ms ease;
 }
 
-.quick-log-panel,
+.primary-action:disabled {
+  cursor: default;
+  background: linear-gradient(135deg, #baa89d, #a8968b);
+  box-shadow: none;
+}
+
+.stacked-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.feed-button-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+
 .plan-panel,
 .history-panel,
 .details-panel {
   background: rgba(255, 252, 247, 0.9);
 }
 
-.manual-form,
-.settings-form {
-  display: grid;
-  gap: 14px;
-  margin-top: 14px;
-}
-
-.manual-form {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  align-items: end;
-}
-
-.settings-form {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-label {
-  display: grid;
-  gap: 8px;
-  color: var(--muted);
-  font-size: 0.94rem;
-}
-
-input {
-  width: 100%;
-  min-width: 0;
-  padding: 12px 14px;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.92);
-  color: var(--text);
-  outline: none;
-}
-
-.next-sleep-card {
-  margin-top: 14px;
-  padding: 18px;
-  border: 1px solid var(--line);
-  border-radius: 22px;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(243, 247, 242, 0.95));
-}
-
-.next-sleep-card p {
-  margin: 10px 0 0;
-  line-height: 1.45;
+.summary-grid {
+  margin-top: 16px;
 }
 
 .plan-scale {
@@ -289,6 +285,7 @@ input {
 .plan-track-empty {
   display: grid;
   place-items: center;
+  height: 100%;
   padding: 0 18px;
   color: var(--muted);
   text-align: center;
@@ -357,7 +354,7 @@ input {
 
 .upcoming-card-time,
 .history-time {
-  min-width: 110px;
+  min-width: 120px;
   font-weight: 700;
 }
 
@@ -372,10 +369,6 @@ input {
   margin: 6px 0 0;
   color: var(--muted);
   line-height: 1.45;
-}
-
-.history-heading {
-  gap: 16px;
 }
 
 .date-picker input {
@@ -397,6 +390,40 @@ input {
   color: var(--danger);
 }
 
+.manual-form,
+.settings-form {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.manual-form {
+  align-items: end;
+}
+
+.settings-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+label {
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.94rem;
+}
+
+input,
+select {
+  width: 100%;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--text);
+  outline: none;
+}
+
 .details-panel summary {
   list-style: none;
   font-family: var(--font-heading);
@@ -412,7 +439,7 @@ input {
 }
 
 .details-note {
-  margin: 14px 0 0;
+  margin: 0;
   line-height: 1.5;
 }
 
@@ -440,12 +467,16 @@ input {
   background: rgba(255, 255, 255, 0.55);
 }
 
-@media (max-width: 760px) {
-  .manual-form,
+@media (max-width: 860px) {
+  .quick-grid,
+  .summary-grid,
+  .past-grid,
   .settings-form {
     grid-template-columns: 1fr;
   }
+}
 
+@media (max-width: 760px) {
   .app-header,
   .panel-heading,
   .history-heading,
