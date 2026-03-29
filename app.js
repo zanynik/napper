@@ -20,8 +20,11 @@ const feedPriors = [
 ];
 
 const els = {
+  topBarEyebrow: document.querySelector("#topBarEyebrow"),
+  topBarTitle: document.querySelector("#topBarTitle"),
   sleepTabButton: document.querySelector("#sleepTabButton"),
   feedTabButton: document.querySelector("#feedTabButton"),
+  settingsTabButton: document.querySelector("#settingsTabButton"),
   sunModeButton: document.querySelector("#sunModeButton"),
   moonModeButton: document.querySelector("#moonModeButton"),
   tabPanels: document.querySelectorAll("[data-tab-panel]"),
@@ -53,17 +56,20 @@ const els = {
   planScale: document.querySelector("#planScale"),
   planTrack: document.querySelector("#planTrack"),
   sleepDayList: document.querySelector("#sleepDayList"),
+  addSleepEntryButton: document.querySelector("#addSleepEntryButton"),
   feedHistoryDateInput: document.querySelector("#feedHistoryDateInput"),
   historyEyebrow: document.querySelector("#historyEyebrow"),
   historyTitle: document.querySelector("#historyTitle"),
   historySummary: document.querySelector("#historySummary"),
   historyList: document.querySelector("#historyList"),
+  addFeedEntryButton: document.querySelector("#addFeedEntryButton"),
   manualNapForm: document.querySelector("#manualNapForm"),
-  manualNapDateInput: document.querySelector("#manualNapDateInput"),
+  manualSleepStartLabel: document.querySelector("#manualSleepStartLabel"),
+  manualSleepEndLabel: document.querySelector("#manualSleepEndLabel"),
+  manualSleepSaveButton: document.querySelector("#manualSleepSaveButton"),
   manualNapStartInput: document.querySelector("#manualNapStartInput"),
   manualNapEndInput: document.querySelector("#manualNapEndInput"),
   manualFeedForm: document.querySelector("#manualFeedForm"),
-  manualFeedDateInput: document.querySelector("#manualFeedDateInput"),
   manualFeedTimeInput: document.querySelector("#manualFeedTimeInput"),
   manualFeedKindInput: document.querySelector("#manualFeedKindInput"),
   settingsForm: document.querySelector("#settingsForm"),
@@ -71,6 +77,7 @@ const els = {
   babyNameInput: document.querySelector("#babyNameInput"),
   dateOfBirthInput: document.querySelector("#dateOfBirthInput"),
   dueDateInput: document.querySelector("#dueDateInput"),
+  ageDisplayInput: document.querySelector("#ageDisplayInput"),
   ageMonthsInput: document.querySelector("#ageMonthsInput"),
   installButton: document.querySelector("#installButton"),
   exportButton: document.querySelector("#exportButton"),
@@ -211,16 +218,18 @@ function isValidDateValue(value) {
   return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
-function getProfileAgeInfo(referenceDate = now()) {
+function getProfileAgeInfo(referenceDate = now(), profile = state.profile) {
   const today = startOfDay(referenceDate);
-  const birthValue = state.profile.dateOfBirth;
-  const dueValue = state.profile.dueDate;
+  const birthValue = profile.dateOfBirth;
+  const dueValue = profile.dueDate;
+  const fallbackMonths = clamp(Number(profile.ageMonthsFallback) || 0, 0, 36);
 
   if (isValidDateValue(birthValue)) {
     const birthDate = parseDateValue(birthValue);
     const chronologicalDays = Math.max(0, Math.floor((today - birthDate) / MS_IN_DAY));
     let effectiveDays = chronologicalDays;
     let summary = `Age ${humanizeAge(chronologicalDays)}.`;
+    let display = humanizeAge(chronologicalDays);
 
     if (isValidDateValue(dueValue)) {
       const dueDate = parseDateValue(dueValue);
@@ -229,19 +238,22 @@ function getProfileAgeInfo(referenceDate = now()) {
         summary = `Chronological age ${humanizeAge(chronologicalDays)}. Corrected age ${humanizeAge(
           effectiveDays,
         )}.`;
+        display = `${humanizeAge(effectiveDays)} corrected`;
       }
     }
 
     return {
       ageMonths: effectiveDays / 30.4375,
+      display,
       summary,
       source: "dates",
     };
   }
 
   return {
-    ageMonths: clamp(Number(state.profile.ageMonthsFallback) || 0, 0, 36),
-    summary: `Using manual age ${state.profile.ageMonthsFallback} months. Add date of birth for more precise age-based predictions.`,
+    ageMonths: fallbackMonths,
+    display: `${fallbackMonths} month${fallbackMonths === 1 ? "" : "s"}`,
+    summary: `Using manual age ${fallbackMonths} months. Add date of birth for more precise age-based predictions.`,
     source: "manual",
   };
 }
@@ -394,6 +406,7 @@ const ui = {
   activeTab: "sleep",
   sleepMode: "sun",
   napEditTarget: null,
+  openComposer: null,
 };
 
 function saveState() {
@@ -407,6 +420,8 @@ function replaceState(nextState) {
   state.nights = normalized.nights;
   state.feeds = normalized.feeds;
   ui.historyDate = formatDateInput(now());
+  ui.openComposer = null;
+  ui.napEditTarget = null;
   syncForm();
   syncDateInputs();
   render();
@@ -1103,8 +1118,11 @@ function buildHistoryEntries(dateValue) {
 function renderTabs() {
   els.sleepTabButton.classList.toggle("is-active", ui.activeTab === "sleep");
   els.feedTabButton.classList.toggle("is-active", ui.activeTab === "feed");
+  els.settingsTabButton.classList.toggle("is-active", ui.activeTab === "settings");
   els.sunModeButton.classList.toggle("is-active", ui.sleepMode === "sun");
   els.moonModeButton.classList.toggle("is-active", ui.sleepMode === "moon");
+  els.addSleepEntryButton.classList.toggle("is-active", ui.openComposer === "sleep");
+  els.addFeedEntryButton.classList.toggle("is-active", ui.openComposer === "feed");
 
   els.tabPanels.forEach((panel) => {
     panel.hidden = panel.dataset.tabPanel !== ui.activeTab;
@@ -1190,6 +1208,90 @@ function renderFeedHistory() {
     .join("");
 }
 
+function getSleepComposerLabel() {
+  return "Sleep day view";
+}
+
+function getDefaultManualNapValues(dateValue = ui.historyDate) {
+  if (dateValue === formatDateInput(now())) {
+    const roundedEnd = new Date(Math.round(now().getTime() / 300000) * 300000);
+    const start = new Date(roundedEnd.getTime() - 45 * 60000);
+    return {
+      start: formatTimeInput(start),
+      end: formatTimeInput(roundedEnd),
+    };
+  }
+
+  return {
+    start: "13:00",
+    end: "14:00",
+  };
+}
+
+function getDefaultManualNightValues(dateValue = ui.historyDate) {
+  const referenceDay = parseDateValue(dateValue);
+  const currentBounds = getDayBoundsForDate(referenceDay);
+  const nextBounds = getDayBoundsForDate(addDays(referenceDay, 1));
+
+  return {
+    start: formatTimeInput(currentBounds.dayEnd),
+    end: formatTimeInput(nextBounds.dayStart),
+  };
+}
+
+function getDefaultManualFeedValue(dateValue = ui.historyDate) {
+  if (dateValue === formatDateInput(now())) {
+    return formatTimeInput(now());
+  }
+
+  return "12:00";
+}
+
+function populateManualNapForm() {
+  const defaults =
+    ui.sleepMode === "moon" ? getDefaultManualNightValues(ui.historyDate) : getDefaultManualNapValues(ui.historyDate);
+  els.manualNapStartInput.value = defaults.start;
+  els.manualNapEndInput.value = defaults.end;
+}
+
+function populateManualFeedForm() {
+  els.manualFeedTimeInput.value = getDefaultManualFeedValue(ui.historyDate);
+}
+
+function toggleComposer(type) {
+  ui.openComposer = ui.openComposer === type ? null : type;
+
+  if (ui.openComposer === "sleep") {
+    populateManualNapForm();
+  }
+
+  if (ui.openComposer === "feed") {
+    populateManualFeedForm();
+  }
+
+  render();
+}
+
+function renderTopBar() {
+  const selectedDateLabel =
+    ui.historyDate === formatDateInput(now()) ? "Today" : formatDateLabel(ui.historyDate);
+
+  if (ui.activeTab === "sleep") {
+    els.topBarEyebrow.textContent = selectedDateLabel;
+    els.topBarTitle.textContent = "Sleep";
+    return;
+  }
+
+  if (ui.activeTab === "feed") {
+    els.topBarEyebrow.textContent = selectedDateLabel;
+    els.topBarTitle.textContent = "Feed";
+    return;
+  }
+
+  els.topBarEyebrow.textContent = state.profile.babyName || "Baby";
+  els.topBarTitle.textContent = "Settings";
+}
+
 function renderSleepDayView(sleepPlan) {
   const isCurrentDate = ui.historyDate === formatDateInput(now());
   const dateReference = parseDateValue(ui.historyDate);
@@ -1211,6 +1313,7 @@ function renderSleepDayView(sleepPlan) {
           timeLabel: `${formatClock(block.start)} - ${formatClock(block.end)}`,
           title: block.title,
           note: block.note,
+          isPredicted: true,
         }))
     : [];
 
@@ -1222,7 +1325,7 @@ function renderSleepDayView(sleepPlan) {
     nightCount ? `${nightCount} night${nightCount === 1 ? "" : "s"}` : null,
   ].filter(Boolean);
 
-  els.sleepDayEyebrow.textContent = isCurrentDate ? "Sleep day view" : "Sleep history";
+  els.sleepDayEyebrow.textContent = isCurrentDate ? getSleepComposerLabel() : "Sleep history";
   els.sleepDayTitle.textContent = isCurrentDate
     ? "Today and tonight"
     : `Sleep on ${formatDateLabel(ui.historyDate)}`;
@@ -1233,6 +1336,7 @@ function renderSleepDayView(sleepPlan) {
 
   renderPlanScale(bounds);
   renderPlanTrack(bounds, isCurrentDate, sleepPlan);
+  els.manualNapForm.hidden = ui.openComposer !== "sleep";
 
   els.sleepDaySummary.textContent = summaryParts.length
     ? `${formatDateLabel(ui.historyDate)} · ${summaryParts.join(" · ")}`
@@ -1252,6 +1356,11 @@ function renderSleepDayView(sleepPlan) {
             <strong>${entry.title}</strong>
             <p>${entry.note}</p>
           </div>
+          ${
+            entry.id
+              ? `<button class="history-delete" type="button" data-delete-type="${entry.type}" data-delete-id="${entry.id}">Delete</button>`
+              : `<span class="list-tag">Predicted</span>`
+          }
         </article>
       `,
     )
@@ -1260,17 +1369,30 @@ function renderSleepDayView(sleepPlan) {
 
 function syncForm() {
   const { profile } = state;
+  const ageInfo = getProfileAgeInfo(now(), profile);
   els.babyNameInput.value = profile.babyName;
   els.dateOfBirthInput.value = profile.dateOfBirth;
   els.dueDateInput.value = profile.dueDate;
   els.ageMonthsInput.value = profile.ageMonthsFallback;
+  els.ageDisplayInput.value = ageInfo.display;
+  els.ageMonthsInput.disabled = ageInfo.source === "dates";
 }
 
 function syncDateInputs() {
   els.sleepDateInput.value = ui.historyDate;
   els.feedHistoryDateInput.value = ui.historyDate;
-  els.manualNapDateInput.value = ui.historyDate;
-  els.manualFeedDateInput.value = ui.historyDate;
+}
+
+function syncAgePreview() {
+  const ageInfo = getProfileAgeInfo(now(), {
+    babyName: els.babyNameInput.value.trim() || "Baby",
+    dateOfBirth: els.dateOfBirthInput.value || "",
+    dueDate: els.dueDateInput.value || "",
+    ageMonthsFallback: clamp(Number(els.ageMonthsInput.value) || 0, 0, 36),
+  });
+
+  els.ageDisplayInput.value = ageInfo.display;
+  els.ageMonthsInput.disabled = ageInfo.source === "dates";
 }
 
 function render() {
@@ -1289,6 +1411,9 @@ function render() {
     els.sleepPrimaryButton.textContent = napCopy.button;
     els.sleepPrimaryButton.disabled = napCopy.disabled;
     els.sleepSecondaryButton.hidden = true;
+    els.manualSleepStartLabel.textContent = "Start";
+    els.manualSleepEndLabel.textContent = "End";
+    els.manualSleepSaveButton.textContent = "Save nap";
   } else {
     els.sleepModeEyebrow.textContent = "Night";
     els.sleepModeHeadline.textContent = nightCopy.headline;
@@ -1299,6 +1424,9 @@ function render() {
     if (nightCopy.secondary) {
       els.sleepSecondaryButton.textContent = nightCopy.secondary;
     }
+    els.manualSleepStartLabel.textContent = "Bedtime";
+    els.manualSleepEndLabel.textContent = "Final wake";
+    els.manualSleepSaveButton.textContent = "Save night";
   }
 
   els.feedHeadline.textContent = feedCopy.headline;
@@ -1318,7 +1446,9 @@ function render() {
   }
 
   els.ageSummary.textContent = ageInfo.summary;
+  els.manualFeedForm.hidden = ui.openComposer !== "feed";
 
+  renderTopBar();
   renderTabs();
   renderNapTimeEditor();
   renderSleepDayView(sleepPlan);
@@ -1473,12 +1603,39 @@ function addManualNap(dateValue, startTime, endTime) {
     end: end.toISOString(),
   });
   ui.historyDate = dateValue;
+  ui.openComposer = null;
+  render();
+  return true;
+}
+
+function addManualNight(dateValue, startTime, endTime) {
+  const start = combineDateAndTime(dateValue, startTime);
+  let end = combineDateAndTime(dateValue, endTime);
+
+  if (end <= start) {
+    end = addDays(end, 1);
+  }
+
+  if ((end - start) / 60000 < 30) {
+    window.alert("Final wake needs to be meaningfully after bedtime.");
+    return false;
+  }
+
+  state.nights.push({
+    id: uid(),
+    start: start.toISOString(),
+    end: end.toISOString(),
+    breaks: [],
+  });
+  ui.historyDate = dateValue;
+  ui.openComposer = null;
   render();
   return true;
 }
 
 function addManualFeed(dateValue, timeValue, kind) {
   ui.historyDate = dateValue;
+  ui.openComposer = null;
   addFeed(kind, combineDateAndTime(dateValue, timeValue), false);
   render();
 }
@@ -1563,22 +1720,58 @@ els.feedBottleButton.addEventListener("click", () => addFeed("bottle"));
 
 els.sleepTabButton.addEventListener("click", () => {
   ui.activeTab = "sleep";
+  ui.openComposer = null;
   render();
 });
 
 els.feedTabButton.addEventListener("click", () => {
   ui.activeTab = "feed";
+  ui.openComposer = null;
+  render();
+});
+
+els.settingsTabButton.addEventListener("click", () => {
+  ui.activeTab = "settings";
+  ui.openComposer = null;
   render();
 });
 
 els.sunModeButton.addEventListener("click", () => {
   ui.sleepMode = "sun";
+  ui.openComposer = null;
   render();
 });
 
 els.moonModeButton.addEventListener("click", () => {
   ui.sleepMode = "moon";
+  ui.openComposer = null;
   render();
+});
+
+els.addSleepEntryButton.addEventListener("click", () => {
+  toggleComposer("sleep");
+  if (ui.openComposer !== "sleep") {
+    return;
+  }
+
+  if (typeof els.manualNapStartInput.showPicker === "function") {
+    els.manualNapStartInput.showPicker();
+  } else {
+    els.manualNapStartInput.focus();
+  }
+});
+
+els.addFeedEntryButton.addEventListener("click", () => {
+  toggleComposer("feed");
+  if (ui.openComposer !== "feed") {
+    return;
+  }
+
+  if (typeof els.manualFeedTimeInput.showPicker === "function") {
+    els.manualFeedTimeInput.showPicker();
+  } else {
+    els.manualFeedTimeInput.focus();
+  }
 });
 
 els.napEditRow.addEventListener("click", (event) => {
@@ -1615,23 +1808,19 @@ els.napTimeCancelButton.addEventListener("click", () => {
 
 els.manualNapForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  const saved = addManualNap(
-    els.manualNapDateInput.value,
-    els.manualNapStartInput.value,
-    els.manualNapEndInput.value,
-  );
+  const saved =
+    ui.sleepMode === "moon"
+      ? addManualNight(ui.historyDate, els.manualNapStartInput.value, els.manualNapEndInput.value)
+      : addManualNap(ui.historyDate, els.manualNapStartInput.value, els.manualNapEndInput.value);
   if (saved) {
-    els.manualNapStartInput.value = "";
-    els.manualNapEndInput.value = "";
-    syncDateInputs();
+    populateManualNapForm();
   }
 });
 
 els.manualFeedForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  addManualFeed(els.manualFeedDateInput.value, els.manualFeedTimeInput.value, els.manualFeedKindInput.value);
-  els.manualFeedTimeInput.value = "";
-  syncDateInputs();
+  addManualFeed(ui.historyDate, els.manualFeedTimeInput.value, els.manualFeedKindInput.value);
+  populateManualFeedForm();
 });
 
 function handleDateChange(value) {
@@ -1649,6 +1838,17 @@ els.feedHistoryDateInput.addEventListener("change", (event) => {
 });
 
 els.historyList.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-delete-id]");
+  if (!button) {
+    return;
+  }
+
+  if (window.confirm("Delete this entry?")) {
+    deleteEntry(button.dataset.deleteType, button.dataset.deleteId);
+  }
+});
+
+els.sleepDayList.addEventListener("click", (event) => {
   const button = event.target.closest("[data-delete-id]");
   if (!button) {
     return;
@@ -1693,6 +1893,11 @@ els.settingsForm.addEventListener("submit", (event) => {
   syncForm();
   render();
 });
+
+els.dateOfBirthInput.addEventListener("input", syncAgePreview);
+els.dueDateInput.addEventListener("input", syncAgePreview);
+els.ageMonthsInput.addEventListener("input", syncAgePreview);
+els.babyNameInput.addEventListener("input", syncAgePreview);
 
 window.addEventListener("beforeinstallprompt", (event) => {
   event.preventDefault();

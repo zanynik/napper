@@ -22,155 +22,144 @@
   </head>
   <body>
     <main class="app-shell">
-      <header class="app-header">
-        <div class="header-copy">
-          <p class="eyebrow">Simple sleep + feed log</p>
-          <h1>Napper Web</h1>
-          <p class="lede">
-            Log naps, nights, and feeds quickly. See what sleep and feeding are
-            likely next, and review everything by date.
-          </p>
+      <header class="top-bar">
+        <div>
+          <p class="eyebrow" id="topBarEyebrow">Today</p>
+          <h1 class="top-title" id="topBarTitle">Sleep</h1>
         </div>
-        <button class="install-button" id="installButton" hidden>Install</button>
+        <button class="icon-button" id="installButton" hidden>Install</button>
       </header>
 
-      <nav class="tab-bar" aria-label="Primary sections">
-        <button class="tab-button is-active" id="sleepTabButton" type="button">Sleep</button>
-        <button class="tab-button" id="feedTabButton" type="button">Feed</button>
-      </nav>
-
-      <section class="panel quick-log-panel tab-panel" data-tab-panel="sleep">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">Quick log</p>
-            <h2>What is happening right now?</h2>
+      <section class="tab-panel sleep-screen" data-tab-panel="sleep">
+        <section class="panel quick-log-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Quick log</p>
+              <h2>Sleep</h2>
+            </div>
           </div>
-        </div>
 
-        <div class="mode-toggle" aria-label="Sleep mode">
-          <button class="mode-button is-active" id="sunModeButton" type="button">Sun</button>
-          <button class="mode-button" id="moonModeButton" type="button">Moon</button>
-        </div>
-
-        <article class="quick-card sleep-quick-card">
-          <p class="eyebrow" id="sleepModeEyebrow">Nap</p>
-          <h3 id="sleepModeHeadline">Ready for the next nap</h3>
-          <p class="quick-note" id="sleepModeNote">
-            Tap when a nap starts, then tap again when it ends.
-          </p>
-          <div class="nap-edit-row" id="napEditRow" hidden>
-            <button class="time-pill" id="napStartTimeButton" type="button"></button>
-            <button class="time-pill" id="napEndTimeButton" type="button" hidden></button>
+          <div class="mode-toggle" aria-label="Sleep mode">
+            <button class="mode-button is-active" id="sunModeButton" type="button">Sun</button>
+            <button class="mode-button" id="moonModeButton" type="button">Moon</button>
           </div>
-          <form class="time-edit-form" id="napTimeEditForm" hidden>
-            <label class="sr-only" for="napTimeEditInput">Edit nap time</label>
-            <input id="napTimeEditInput" type="time" required />
-            <button class="secondary-action" type="submit">Save time</button>
-            <button class="secondary-action" id="napTimeCancelButton" type="button">Cancel</button>
-          </form>
-          <div class="stacked-actions">
-            <button class="primary-action" id="sleepPrimaryButton">Start nap now</button>
-            <button class="secondary-action" id="sleepSecondaryButton" type="button" hidden>Final wake</button>
+
+          <article class="quick-card sleep-quick-card">
+            <p class="eyebrow" id="sleepModeEyebrow">Nap</p>
+            <h3 id="sleepModeHeadline">Ready for the next nap</h3>
+            <p class="quick-note" id="sleepModeNote">
+              Tap when a nap starts, then tap again when it ends.
+            </p>
+            <div class="nap-edit-row" id="napEditRow" hidden>
+              <button class="time-pill" id="napStartTimeButton" type="button"></button>
+              <button class="time-pill" id="napEndTimeButton" type="button" hidden></button>
+            </div>
+            <form class="time-edit-form" id="napTimeEditForm" hidden>
+              <label class="sr-only" for="napTimeEditInput">Edit nap time</label>
+              <input id="napTimeEditInput" type="time" required />
+              <button class="secondary-action" type="submit">Save time</button>
+              <button class="secondary-action" id="napTimeCancelButton" type="button">Cancel</button>
+            </form>
+            <div class="stacked-actions">
+              <button class="primary-action" id="sleepPrimaryButton">Start nap now</button>
+              <button class="secondary-action" id="sleepSecondaryButton" type="button" hidden>
+                Final wake
+              </button>
+            </div>
+          </article>
+        </section>
+
+        <section class="panel day-panel">
+          <div class="panel-heading history-heading">
+            <div>
+              <p class="eyebrow" id="sleepDayEyebrow">Sleep day view</p>
+              <h2 id="sleepDayTitle">Today and tonight</h2>
+            </div>
+            <div class="header-actions">
+              <label class="date-picker">
+                <span class="sr-only">Choose date</span>
+                <input id="sleepDateInput" type="date" />
+              </label>
+              <button class="icon-button" id="addSleepEntryButton" type="button" aria-label="Add sleep entry">
+                +
+              </button>
+            </div>
           </div>
-        </article>
-      </section>
 
-      <section class="panel plan-panel tab-panel" data-tab-panel="sleep">
-        <div class="panel-heading history-heading">
-          <div>
-            <p class="eyebrow" id="sleepDayEyebrow">Sleep day view</p>
-            <h2 id="sleepDayTitle">Today and tonight</h2>
-          </div>
-          <label class="date-picker">
-            <span class="sr-only">Choose date</span>
-            <input id="sleepDateInput" type="date" />
-          </label>
-        </div>
+          <article class="next-card">
+            <p class="eyebrow">Next sleep</p>
+            <h3 id="nextSleepMain">Waiting for the first nap</h3>
+            <p id="nextSleepNote">Log a nap and the schedule will adapt.</p>
+          </article>
 
-        <article class="next-card">
-          <p class="eyebrow">Next sleep</p>
-          <h3 id="nextSleepMain">Waiting for the first nap</h3>
-          <p id="nextSleepNote">Log a nap and the schedule will adapt.</p>
-        </article>
+          <div class="plan-scale" id="planScale"></div>
+          <div class="plan-track" id="planTrack" aria-label="Sleep plan visual"></div>
 
-        <div class="plan-scale" id="planScale"></div>
-        <div class="plan-track" id="planTrack" aria-label="Sleep plan visual"></div>
-        <p class="history-summary" id="sleepDaySummary"></p>
-        <div class="upcoming-list" id="sleepDayList"></div>
-      </section>
-
-      <section class="panel tab-panel feed-panel" data-tab-panel="feed" hidden>
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">Quick feed</p>
-            <h2>Log a feed fast</h2>
-          </div>
-        </div>
-
-        <article class="quick-card">
-          <p class="eyebrow">Feed</p>
-          <h3 id="feedHeadline">Log a feed in one tap</h3>
-          <p class="quick-note" id="feedQuickNote">
-            Choose the side or method used for this feed.
-          </p>
-          <div class="feed-button-grid">
-            <button class="secondary-action" id="feedLeftButton" type="button">Left</button>
-            <button class="secondary-action" id="feedRightButton" type="button">Right</button>
-            <button class="secondary-action" id="feedBothButton" type="button">Both</button>
-            <button class="secondary-action" id="feedBottleButton" type="button">Bottle</button>
-          </div>
-        </article>
-
-        <article class="next-card feed-next-card">
-          <p class="eyebrow">Next feed</p>
-          <h3 id="nextFeedMain">Waiting for feed data</h3>
-          <p id="nextFeedNote">Log a few feeds and the timing will start to learn.</p>
-        </article>
-      </section>
-
-      <section class="panel history-panel tab-panel" data-tab-panel="feed" hidden>
-        <div class="panel-heading history-heading">
-          <div>
-            <p class="eyebrow" id="historyEyebrow">Feed history</p>
-            <h2 id="historyTitle">See feeds by date</h2>
-          </div>
-          <label class="date-picker">
-            <span class="sr-only">Choose date</span>
-            <input id="feedHistoryDateInput" type="date" />
-          </label>
-        </div>
-
-        <p class="history-summary" id="historySummary"></p>
-        <div class="history-list" id="historyList"></div>
-      </section>
-
-      <details class="panel details-panel">
-        <summary>Add a past nap or feed</summary>
-
-        <div class="past-grid">
-          <form id="manualNapForm" class="manual-form">
-            <h3>Past nap</h3>
+          <form id="manualNapForm" class="inline-add-form" hidden>
             <label>
-              Date
-              <input id="manualNapDateInput" name="manualNapDate" type="date" required />
-            </label>
-            <label>
-              Start
+              <span id="manualSleepStartLabel">Start</span>
               <input id="manualNapStartInput" name="manualNapStart" type="time" required />
             </label>
             <label>
-              End
+              <span id="manualSleepEndLabel">End</span>
               <input id="manualNapEndInput" name="manualNapEnd" type="time" required />
             </label>
-            <button class="secondary-action" type="submit">Save nap</button>
+            <button class="secondary-action" id="manualSleepSaveButton" type="submit">Save nap</button>
           </form>
 
-          <form id="manualFeedForm" class="manual-form">
-            <h3>Past feed</h3>
-            <label>
-              Date
-              <input id="manualFeedDateInput" name="manualFeedDate" type="date" required />
-            </label>
+          <p class="history-summary" id="sleepDaySummary"></p>
+          <div class="upcoming-list" id="sleepDayList"></div>
+        </section>
+      </section>
+
+      <section class="tab-panel feed-screen" data-tab-panel="feed" hidden>
+        <section class="panel feed-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Quick feed</p>
+              <h2>Feed</h2>
+            </div>
+          </div>
+
+          <article class="quick-card">
+            <p class="eyebrow">Feed</p>
+            <h3 id="feedHeadline">Log a feed in one tap</h3>
+            <p class="quick-note" id="feedQuickNote">
+              Choose the side or method used for this feed.
+            </p>
+            <div class="feed-button-grid">
+              <button class="secondary-action" id="feedLeftButton" type="button">Left</button>
+              <button class="secondary-action" id="feedRightButton" type="button">Right</button>
+              <button class="secondary-action" id="feedBothButton" type="button">Both</button>
+              <button class="secondary-action" id="feedBottleButton" type="button">Bottle</button>
+            </div>
+          </article>
+
+          <article class="next-card feed-next-card">
+            <p class="eyebrow">Next feed</p>
+            <h3 id="nextFeedMain">Waiting for feed data</h3>
+            <p id="nextFeedNote">Log a few feeds and the timing will start to learn.</p>
+          </article>
+        </section>
+
+        <section class="panel history-panel">
+          <div class="panel-heading history-heading">
+            <div>
+              <p class="eyebrow" id="historyEyebrow">Feed history</p>
+              <h2 id="historyTitle">See feeds by date</h2>
+            </div>
+            <div class="header-actions">
+              <label class="date-picker">
+                <span class="sr-only">Choose date</span>
+                <input id="feedHistoryDateInput" type="date" />
+              </label>
+              <button class="icon-button" id="addFeedEntryButton" type="button" aria-label="Add feed entry">
+                +
+              </button>
+            </div>
+          </div>
+
+          <form id="manualFeedForm" class="inline-add-form" hidden>
             <label>
               Time
               <input id="manualFeedTimeInput" name="manualFeedTime" type="time" required />
@@ -186,62 +175,76 @@
             </label>
             <button class="secondary-action" type="submit">Save feed</button>
           </form>
-        </div>
-      </details>
 
-      <details class="panel details-panel">
-        <summary>Sleep settings</summary>
+          <p class="history-summary" id="historySummary"></p>
+          <div class="history-list" id="historyList"></div>
+        </section>
+      </section>
 
-        <p class="details-note" id="ageSummary">
-          Add date of birth for more exact age-based predictions. Add due date
-          too if corrected age matters.
-        </p>
+      <section class="tab-panel settings-screen" data-tab-panel="settings" hidden>
+        <section class="panel settings-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Settings</p>
+              <h2>Profile</h2>
+            </div>
+          </div>
 
-        <form id="settingsForm" class="settings-form">
-          <label>
-            Baby name
-            <input id="babyNameInput" name="babyName" type="text" maxlength="24" />
-          </label>
-          <label>
-            Date of birth
-            <input id="dateOfBirthInput" name="dateOfBirth" type="date" />
-          </label>
-          <label>
-            Due date (optional)
-            <input id="dueDateInput" name="dueDate" type="date" />
-          </label>
-          <label>
-            Age in months (fallback)
-            <input id="ageMonthsInput" name="ageMonths" type="number" min="0" max="36" />
-          </label>
-          <button class="secondary-action" type="submit">Save settings</button>
-        </form>
+          <p class="details-note" id="ageSummary">
+            Add date of birth for more exact age-based predictions. Add due date
+            too if corrected age matters.
+          </p>
 
-        <p class="details-note">
-          Date of birth improves age-based sleep priors. Due date only matters
-          if you want corrected age used for early babies. Wake windows, nap
-          length, and feed spacing are estimated automatically from age and
-          recent logs.
-        </p>
-      </details>
+          <form id="settingsForm" class="settings-form">
+            <label>
+              Baby name
+              <input id="babyNameInput" name="babyName" type="text" maxlength="24" />
+            </label>
+            <label>
+              Date of birth
+              <input id="dateOfBirthInput" name="dateOfBirth" type="date" />
+            </label>
+            <label>
+              Due date (optional)
+              <input id="dueDateInput" name="dueDate" type="date" />
+            </label>
+            <label>
+              Age
+              <input id="ageDisplayInput" type="text" readonly />
+            </label>
+            <label>
+              Age if DOB unknown
+              <input id="ageMonthsInput" name="ageMonths" type="number" min="0" max="36" />
+            </label>
+            <button class="secondary-action" type="submit">Save settings</button>
+          </form>
+        </section>
 
-      <details class="panel details-panel">
-        <summary>Backup and local data</summary>
+        <section class="panel settings-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Data</p>
+              <h2>Backup</h2>
+            </div>
+          </div>
 
-        <p class="details-note">
-          Logs stay in this browser on this device unless you export them.
-        </p>
-
-        <div class="storage-actions">
-          <button class="secondary-action" id="exportButton" type="button">Export data</button>
-          <label class="secondary-action file-button" for="importInput">Import data</label>
-          <input id="importInput" type="file" accept="application/json" hidden />
-          <button class="secondary-action danger-action" id="resetAllButton" type="button">
-            Reset all data
-          </button>
-        </div>
-      </details>
+          <div class="storage-actions">
+            <button class="secondary-action" id="exportButton" type="button">Export data</button>
+            <label class="secondary-action file-button" for="importInput">Import data</label>
+            <input id="importInput" type="file" accept="application/json" hidden />
+            <button class="secondary-action danger-action" id="resetAllButton" type="button">
+              Reset all data
+            </button>
+          </div>
+        </section>
+      </section>
     </main>
+
+    <nav class="bottom-nav" aria-label="Primary navigation">
+      <button class="nav-button is-active" id="sleepTabButton" type="button">Sleep</button>
+      <button class="nav-button" id="feedTabButton" type="button">Feed</button>
+      <button class="nav-button" id="settingsTabButton" type="button">Settings</button>
+    </nav>
 
     <script src="./app.js"></script>
   </body>
