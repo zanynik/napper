@@ -2,13 +2,13 @@ const STORAGE_KEY = "napper-web-state-v2";
 const MS_IN_DAY = 24 * 60 * 60 * 1000;
 
 const sleepPriors = [
-  { maxMonths: 2, wakeMinutes: 70, wakeRange: [45, 95], napMinutes: 95, naps: 5, totalDaySleep: 500 },
-  { maxMonths: 4, wakeMinutes: 100, wakeRange: [75, 140], napMinutes: 85, naps: 4, totalDaySleep: 380 },
-  { maxMonths: 6, wakeMinutes: 135, wakeRange: [105, 180], napMinutes: 80, naps: 3, totalDaySleep: 260 },
-  { maxMonths: 8, wakeMinutes: 165, wakeRange: [135, 210], napMinutes: 72, naps: 3, totalDaySleep: 230 },
-  { maxMonths: 12, wakeMinutes: 195, wakeRange: [160, 255], napMinutes: 70, naps: 2, totalDaySleep: 180 },
-  { maxMonths: 18, wakeMinutes: 255, wakeRange: [210, 330], napMinutes: 90, naps: 1, totalDaySleep: 150 },
-  { maxMonths: 36, wakeMinutes: 320, wakeRange: [260, 390], napMinutes: 85, naps: 1, totalDaySleep: 110 },
+  { maxMonths: 2, wakeMinutes: 70, wakeRange: [45, 95], napMinutes: 95, naps: 5, totalDaySleep: 500, dayLengthMinutes: 720 },
+  { maxMonths: 4, wakeMinutes: 100, wakeRange: [75, 140], napMinutes: 85, naps: 4, totalDaySleep: 380, dayLengthMinutes: 735 },
+  { maxMonths: 6, wakeMinutes: 135, wakeRange: [105, 180], napMinutes: 80, naps: 3, totalDaySleep: 260, dayLengthMinutes: 750 },
+  { maxMonths: 8, wakeMinutes: 165, wakeRange: [135, 210], napMinutes: 72, naps: 3, totalDaySleep: 230, dayLengthMinutes: 765 },
+  { maxMonths: 12, wakeMinutes: 195, wakeRange: [160, 255], napMinutes: 70, naps: 2, totalDaySleep: 180, dayLengthMinutes: 780 },
+  { maxMonths: 18, wakeMinutes: 255, wakeRange: [210, 330], napMinutes: 90, naps: 1, totalDaySleep: 150, dayLengthMinutes: 780 },
+  { maxMonths: 36, wakeMinutes: 320, wakeRange: [260, 390], napMinutes: 85, naps: 1, totalDaySleep: 110, dayLengthMinutes: 810 },
 ];
 
 const feedPriors = [
@@ -62,8 +62,6 @@ const els = {
   dateOfBirthInput: document.querySelector("#dateOfBirthInput"),
   dueDateInput: document.querySelector("#dueDateInput"),
   ageMonthsInput: document.querySelector("#ageMonthsInput"),
-  wakeTimeInput: document.querySelector("#wakeTimeInput"),
-  bedTimeInput: document.querySelector("#bedTimeInput"),
   installButton: document.querySelector("#installButton"),
   exportButton: document.querySelector("#exportButton"),
   importInput: document.querySelector("#importInput"),
@@ -86,11 +84,6 @@ function addDays(date, days) {
 
 function pad(value) {
   return String(value).padStart(2, "0");
-}
-
-function parseTime(value) {
-  const [hours, minutes] = String(value || "00:00").split(":").map(Number);
-  return hours * 60 + minutes;
 }
 
 function combineDateAndTime(dateValue, timeValue) {
@@ -143,6 +136,13 @@ function formatDateLabel(dateLike) {
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
+}
+
+function average(values) {
+  if (!values.length) {
+    return null;
+  }
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
 function ewma(values, alpha = 0.45) {
@@ -255,8 +255,6 @@ function buildSeedState() {
       dateOfBirth: "",
       dueDate: "",
       ageMonthsFallback: 6,
-      wakeTime: "07:00",
-      bedTime: "19:30",
     },
     naps: [],
     nights: [],
@@ -355,8 +353,6 @@ function normalizeState(candidate) {
       0,
       36,
     ),
-    wakeTime: candidate.profile?.wakeTime || base.profile.wakeTime,
-    bedTime: candidate.profile?.bedTime || base.profile.bedTime,
   };
 
   return {
@@ -480,11 +476,56 @@ function getCompletedNaps() {
   return getParsedNaps().filter((nap) => nap.endDate && nap.endDate > nap.startDate);
 }
 
+function isSameDay(left, right) {
+  return (
+    left.getFullYear() === right.getFullYear() &&
+    left.getMonth() === right.getMonth() &&
+    left.getDate() === right.getDate()
+  );
+}
+
+function minutesIntoDay(date) {
+  return date.getHours() * 60 + date.getMinutes();
+}
+
+function dateAtMinutes(day, minutes) {
+  return new Date(day.getTime() + minutes * 60000);
+}
+
+function getDayBoundsForDate(referenceDate = now()) {
+  const referenceDay = startOfDay(referenceDate);
+  const ageInfo = getProfileAgeInfo(referenceDate);
+  const prior = getSleepPrior(ageInfo.ageMonths);
+  const parsedNights = getParsedNights();
+  const completedNights = parsedNights.filter((night) => night.endDate);
+  const endingNightToday = completedNights.find((night) => isSameDay(night.endDate, referenceDay));
+  const startingNightToday = parsedNights.find((night) => isSameDay(night.startDate, referenceDay));
+  const recentWakeMinutes = completedNights.slice(-6).map((night) => minutesIntoDay(night.endDate));
+  const recentBedMinutes = parsedNights.slice(-6).map((night) => minutesIntoDay(night.startDate));
+
+  const wakeMinute = endingNightToday
+    ? minutesIntoDay(endingNightToday.endDate)
+    : clamp(Math.round(average(recentWakeMinutes) ?? 7 * 60), 5 * 60, 11 * 60);
+
+  let bedMinute = startingNightToday
+    ? minutesIntoDay(startingNightToday.startDate)
+    : Math.round(average(recentBedMinutes) ?? wakeMinute + prior.dayLengthMinutes);
+
+  const earliestBedMinute = wakeMinute + 8 * 60;
+  const latestBedMinute = wakeMinute + 16 * 60;
+  if (bedMinute < earliestBedMinute || bedMinute > latestBedMinute) {
+    bedMinute = wakeMinute + prior.dayLengthMinutes;
+  }
+
+  return {
+    dayStart: dateAtMinutes(referenceDay, wakeMinute),
+    dayEnd: dateAtMinutes(referenceDay, bedMinute),
+    prior,
+  };
+}
+
 function getTodayBounds() {
-  const today = startOfDay(now());
-  const dayStart = new Date(today.getTime() + parseTime(state.profile.wakeTime) * 60000);
-  const dayEnd = new Date(today.getTime() + parseTime(state.profile.bedTime) * 60000);
-  return { dayStart, dayEnd };
+  return getDayBoundsForDate(now());
 }
 
 function getTodayNaps() {
@@ -501,9 +542,7 @@ function recentWakeWindows() {
 
   naps.forEach((nap, index) => {
     const previousEnd = index === 0 ? null : naps[index - 1].endDate;
-    const wakeAnchor =
-      previousEnd ||
-      new Date(startOfDay(nap.startDate).getTime() + parseTime(state.profile.wakeTime) * 60000);
+    const wakeAnchor = previousEnd || getDayBoundsForDate(nap.startDate).dayStart;
     const wakeMinutes = (nap.startDate - wakeAnchor) / 60000;
     if (wakeMinutes > 20 && wakeMinutes < 500) {
       values.push(wakeMinutes);
@@ -738,7 +777,7 @@ function getNightDurationMinutes(night) {
 
 function buildSleepPlan() {
   const { dayStart, dayEnd } = getTodayBounds();
-  const tomorrowWake = new Date(startOfDay(dayStart).getTime() + MS_IN_DAY + parseTime(state.profile.wakeTime) * 60000);
+  const tomorrowWake = getDayBoundsForDate(addDays(dayStart, 1)).dayStart;
   const { predictions, model } = buildSleepPredictions();
   const activeNight = getActiveNightEvent();
   const blocks = predictions.map((prediction) => ({
@@ -1099,8 +1138,6 @@ function syncForm() {
   els.dateOfBirthInput.value = profile.dateOfBirth;
   els.dueDateInput.value = profile.dueDate;
   els.ageMonthsInput.value = profile.ageMonthsFallback;
-  els.wakeTimeInput.value = profile.wakeTime;
-  els.bedTimeInput.value = profile.bedTime;
 }
 
 function syncDateInputs() {
@@ -1432,8 +1469,6 @@ els.settingsForm.addEventListener("submit", (event) => {
     dateOfBirth: els.dateOfBirthInput.value || "",
     dueDate: els.dueDateInput.value || "",
     ageMonthsFallback: clamp(Number(els.ageMonthsInput.value) || 0, 0, 36),
-    wakeTime: els.wakeTimeInput.value || "07:00",
-    bedTime: els.bedTimeInput.value || "19:30",
   };
   syncForm();
   render();
