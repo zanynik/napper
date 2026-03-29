@@ -47,37 +47,44 @@
           </div>
         </div>
 
-        <div class="quick-grid">
-          <article class="quick-card">
-            <p class="eyebrow">Nap</p>
-            <h3 id="napHeadline">Ready for the next nap</h3>
-            <p class="quick-note" id="napNote">
-              Tap when a nap starts, then tap again when it ends.
-            </p>
-            <button class="primary-action" id="napToggleButton">Start nap now</button>
-          </article>
-
-          <article class="quick-card">
-            <p class="eyebrow">Night</p>
-            <h3 id="nightHeadline">Night sleep not started</h3>
-            <p class="quick-note" id="nightNote">
-              At bedtime, start the night. If the baby wakes, log the wake and
-              tap again when they are back asleep.
-            </p>
-            <div class="stacked-actions">
-              <button class="secondary-action" id="nightPrimaryButton">Start night</button>
-              <button class="secondary-action" id="nightSecondaryButton" hidden>Final wake</button>
-            </div>
-          </article>
+        <div class="mode-toggle" aria-label="Sleep mode">
+          <button class="mode-button is-active" id="sunModeButton" type="button">Sun</button>
+          <button class="mode-button" id="moonModeButton" type="button">Moon</button>
         </div>
+
+        <article class="quick-card sleep-quick-card">
+          <p class="eyebrow" id="sleepModeEyebrow">Nap</p>
+          <h3 id="sleepModeHeadline">Ready for the next nap</h3>
+          <p class="quick-note" id="sleepModeNote">
+            Tap when a nap starts, then tap again when it ends.
+          </p>
+          <div class="nap-edit-row" id="napEditRow" hidden>
+            <button class="time-pill" id="napStartTimeButton" type="button"></button>
+            <button class="time-pill" id="napEndTimeButton" type="button" hidden></button>
+          </div>
+          <form class="time-edit-form" id="napTimeEditForm" hidden>
+            <label class="sr-only" for="napTimeEditInput">Edit nap time</label>
+            <input id="napTimeEditInput" type="time" required />
+            <button class="secondary-action" type="submit">Save time</button>
+            <button class="secondary-action" id="napTimeCancelButton" type="button">Cancel</button>
+          </form>
+          <div class="stacked-actions">
+            <button class="primary-action" id="sleepPrimaryButton">Start nap now</button>
+            <button class="secondary-action" id="sleepSecondaryButton" type="button" hidden>Final wake</button>
+          </div>
+        </article>
       </section>
 
       <section class="panel plan-panel tab-panel" data-tab-panel="sleep">
-        <div class="panel-heading">
+        <div class="panel-heading history-heading">
           <div>
-            <p class="eyebrow">Predictions</p>
-            <h2>Today and tonight</h2>
+            <p class="eyebrow" id="sleepDayEyebrow">Sleep day view</p>
+            <h2 id="sleepDayTitle">Today and tonight</h2>
           </div>
+          <label class="date-picker">
+            <span class="sr-only">Choose date</span>
+            <input id="sleepDateInput" type="date" />
+          </label>
         </div>
 
         <article class="next-card">
@@ -88,7 +95,8 @@
 
         <div class="plan-scale" id="planScale"></div>
         <div class="plan-track" id="planTrack" aria-label="Sleep plan visual"></div>
-        <div class="upcoming-list" id="upcomingList"></div>
+        <p class="history-summary" id="sleepDaySummary"></p>
+        <div class="upcoming-list" id="sleepDayList"></div>
       </section>
 
       <section class="panel tab-panel feed-panel" data-tab-panel="feed" hidden>
@@ -120,15 +128,15 @@
         </article>
       </section>
 
-      <section class="panel history-panel">
+      <section class="panel history-panel tab-panel" data-tab-panel="feed" hidden>
         <div class="panel-heading history-heading">
           <div>
-            <p class="eyebrow" id="historyEyebrow">Sleep history</p>
-            <h2 id="historyTitle">See one day at a time</h2>
+            <p class="eyebrow" id="historyEyebrow">Feed history</p>
+            <h2 id="historyTitle">See feeds by date</h2>
           </div>
           <label class="date-picker">
             <span class="sr-only">Choose date</span>
-            <input id="historyDateInput" type="date" />
+            <input id="feedHistoryDateInput" type="date" />
           </label>
         </div>
 
