@@ -148,6 +148,12 @@ h3 {
     linear-gradient(135deg, rgba(255, 248, 242, 0.98), rgba(246, 249, 247, 0.96));
 }
 
+.combined-panel {
+  background:
+    radial-gradient(circle at top right, rgba(255, 255, 255, 0.92), transparent 40%),
+    linear-gradient(135deg, rgba(255, 248, 242, 0.98), rgba(246, 249, 247, 0.96));
+}
+
 .panel-heading {
   gap: 12px;
 }
@@ -157,13 +163,87 @@ h3 {
   gap: 12px;
 }
 
+.date-strip {
+  display: inline-grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.date-chip {
+  min-width: 42px;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 10px 8px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--muted);
+}
+
+.date-chip.is-active {
+  border-color: rgba(201, 129, 98, 0.35);
+  background: rgba(201, 129, 98, 0.14);
+  color: var(--text);
+  box-shadow: 0 8px 18px rgba(86, 66, 46, 0.08);
+}
+
+.date-chip-day {
+  font-weight: 700;
+  line-height: 1;
+}
+
+.date-chip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.65;
+}
+
+.collapse-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--text);
+  text-align: left;
+}
+
+.collapse-copy {
+  display: grid;
+  gap: 3px;
+}
+
+.collapse-meta {
+  display: block;
+  margin: 0;
+}
+
+.collapse-chevron {
+  color: var(--muted);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.collapsible-body {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+}
+
 .header-actions {
   gap: 8px;
 }
 
 .icon-button,
 .secondary-action,
-.date-picker input,
 .time-pill {
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -199,8 +279,8 @@ h3 {
 .icon-button:hover,
 .secondary-action:hover,
 .primary-action:hover,
-.date-picker input:hover,
-.date-picker input:focus,
+.date-chip:hover,
+.date-chip:focus,
 .time-pill:hover,
 input:hover,
 input:focus,
@@ -210,18 +290,6 @@ select:focus {
   box-shadow: 0 10px 24px rgba(86, 66, 46, 0.08);
 }
 
-.mode-toggle {
-  display: inline-grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-  margin-top: 14px;
-  padding: 5px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.72);
-}
-
-.mode-button,
 .nav-button {
   border: 0;
   border-radius: 999px;
@@ -231,7 +299,6 @@ select:focus {
   font-weight: 700;
 }
 
-.mode-button.is-active,
 .nav-button.is-active {
   background: var(--surface-strong);
   color: var(--text);
@@ -244,6 +311,104 @@ select:focus {
   border: 1px solid var(--line);
   border-radius: 20px;
   background: var(--surface);
+}
+
+.focus-card {
+  display: grid;
+  gap: 16px;
+  margin-top: 14px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface);
+}
+
+.card-block {
+  display: grid;
+  gap: 12px;
+}
+
+.card-divider {
+  height: 1px;
+  background: var(--line);
+}
+
+.sleep-action-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.sleep-live-panel {
+  display: grid;
+  gap: 10px;
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transform: translateY(-8px);
+  transition:
+    max-height 220ms ease,
+    opacity 180ms ease,
+    transform 220ms ease,
+    margin-top 220ms ease;
+}
+
+.sleep-live-panel.is-visible {
+  max-height: 220px;
+  margin-top: 10px;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.live-timer {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.live-timer-metric {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid rgba(201, 129, 98, 0.18);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 246, 241, 0.92));
+}
+
+.live-timer-label {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.live-timer-value {
+  font-family: var(--font-heading);
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.nap-adjust-row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  align-items: center;
+}
+
+.adjust-chip {
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--text);
+  font-weight: 700;
+}
+
+.time-pill-strong {
+  min-height: 40px;
+  justify-content: center;
+  background: rgba(201, 129, 98, 0.12);
+  border-color: rgba(201, 129, 98, 0.25);
 }
 
 .sleep-quick-card,
@@ -263,6 +428,14 @@ select:focus {
   margin-top: 16px;
 }
 
+.sleep-action-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 12px;
+  align-items: center;
+  margin-top: 16px;
+}
+
 .primary-action {
   width: 100%;
   padding: 15px 18px;
@@ -279,6 +452,37 @@ select:focus {
   cursor: default;
   background: linear-gradient(135deg, #b9a79b, #a69489);
   box-shadow: none;
+}
+
+.primary-action.is-play-button {
+  grid-column: 2;
+  width: 120px;
+  aspect-ratio: 1;
+  margin: 2px auto;
+  padding: 0;
+  border-radius: 999px;
+  font-size: 1.02rem;
+  letter-spacing: 0.02em;
+}
+
+.mode-clue-button {
+  grid-column: 3;
+  justify-self: start;
+  width: 50px;
+  height: 50px;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #566685, #3f4e69);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  box-shadow: 0 10px 20px rgba(63, 78, 105, 0.22);
+}
+
+.mode-clue-button.is-night {
+  background: linear-gradient(180deg, #455777, #34445f);
 }
 
 .nap-edit-row,
@@ -311,10 +515,6 @@ select:focus {
   margin-top: 16px;
 }
 
-.date-picker input {
-  padding: 10px 14px;
-}
-
 .plan-scale {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -322,6 +522,16 @@ select:focus {
   margin-top: 18px;
   color: var(--muted);
   font-size: 0.76rem;
+}
+
+.plan-scale-sun .scale-label:first-child,
+.plan-scale-sun .scale-label:last-child {
+  color: var(--accent-strong);
+}
+
+.plan-scale-moon .scale-label:first-child,
+.plan-scale-moon .scale-label:last-child {
+  color: var(--night-strong);
 }
 
 .scale-label {
@@ -334,8 +544,21 @@ select:focus {
   margin-top: 10px;
   border: 1px solid var(--line);
   border-radius: 18px;
-  background: linear-gradient(90deg, rgba(247, 242, 235, 0.96), rgba(243, 246, 249, 0.96));
   overflow: hidden;
+}
+
+.plan-track-sun {
+  background:
+    radial-gradient(circle at 18% 30%, rgba(255, 226, 173, 0.42), transparent 24%),
+    linear-gradient(90deg, rgba(251, 244, 230, 0.98), rgba(248, 249, 239, 0.98));
+}
+
+.plan-track-moon {
+  border-color: rgba(74, 95, 125, 0.18);
+  background:
+    radial-gradient(circle at 78% 22%, rgba(255, 255, 255, 0.2), transparent 16%),
+    radial-gradient(circle at 24% 68%, rgba(134, 164, 210, 0.24), transparent 28%),
+    linear-gradient(90deg, rgba(35, 46, 67, 0.96), rgba(63, 79, 109, 0.94));
 }
 
 .plan-track-empty {
@@ -347,6 +570,10 @@ select:focus {
   font-size: 0.9rem;
 }
 
+.plan-track-moon .plan-track-empty {
+  color: rgba(244, 248, 255, 0.88);
+}
+
 .plan-segment {
   position: absolute;
   top: 9px;
@@ -355,19 +582,28 @@ select:focus {
   border-radius: 999px;
 }
 
-.plan-segment-logged {
+.plan-segment-sun-logged {
   background: linear-gradient(135deg, rgba(208, 109, 71, 0.2), rgba(208, 109, 71, 0.42));
 }
 
-.plan-segment-active {
+.plan-segment-sun-active {
   background: linear-gradient(135deg, var(--accent), #f1a381);
 }
 
-.plan-segment-predicted {
+.plan-segment-sun-predicted {
   background: linear-gradient(135deg, var(--sky), var(--sky-strong));
 }
 
-.plan-segment-night {
+.plan-segment-moon-logged {
+  background: linear-gradient(135deg, rgba(132, 158, 198, 0.72), rgba(101, 125, 168, 0.92));
+}
+
+.plan-segment-moon-active {
+  background: linear-gradient(135deg, #d8e5ff, #93abd8);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.22);
+}
+
+.plan-segment-moon-predicted {
   background: linear-gradient(135deg, var(--night), var(--night-strong));
 }
 
@@ -389,6 +625,14 @@ select:focus {
   border-radius: 50%;
   background: var(--text);
   transform: translateX(-50%);
+}
+
+.plan-track-moon .plan-now-marker {
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.plan-track-moon .plan-now-marker::after {
+  background: #f4f8ff;
 }
 
 .inline-add-form,
@@ -446,7 +690,6 @@ input:disabled {
 .history-list {
   display: grid;
   gap: 10px;
-  margin-top: 16px;
 }
 
 .upcoming-card,
@@ -458,10 +701,33 @@ input:disabled {
   background: var(--surface);
 }
 
+.upcoming-card-sun {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 248, 242, 0.9));
+}
+
+.upcoming-card-moon {
+  border-color: rgba(74, 95, 125, 0.18);
+  background:
+    linear-gradient(180deg, rgba(249, 251, 255, 0.94), rgba(235, 241, 250, 0.92));
+}
+
+.upcoming-card-predicted {
+  border-style: dashed;
+}
+
 .upcoming-card-time,
 .history-time {
   min-width: 116px;
   font-weight: 700;
+}
+
+.upcoming-card-sun .upcoming-card-time {
+  color: var(--accent-strong);
+}
+
+.upcoming-card-moon .upcoming-card-time {
+  color: var(--night-strong);
 }
 
 .upcoming-card-copy,
@@ -492,8 +758,18 @@ input:disabled {
   color: var(--sky-strong);
 }
 
+.upcoming-card-moon .list-tag {
+  color: var(--night-strong);
+}
+
 .storage-actions {
   margin-top: 14px;
+}
+
+.bottom-add-row {
+  display: flex;
+  justify-content: center;
+  padding-top: 2px;
 }
 
 .file-button {
@@ -548,10 +824,6 @@ input:disabled {
     width: 100%;
   }
 
-  .date-picker {
-    flex: 1;
-  }
-
   .upcoming-card-time,
   .history-time {
     min-width: 0;
@@ -570,5 +842,9 @@ input:disabled {
 
   .feed-button-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .live-timer {
+    grid-template-columns: 1fr;
   }
 }
