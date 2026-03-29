@@ -20,8 +20,6 @@ const feedPriors = [
 ];
 
 const els = {
-  topBarEyebrow: document.querySelector("#topBarEyebrow"),
-  topBarTitle: document.querySelector("#topBarTitle"),
   sleepTabButton: document.querySelector("#sleepTabButton"),
   feedTabButton: document.querySelector("#feedTabButton"),
   settingsTabButton: document.querySelector("#settingsTabButton"),
@@ -93,13 +91,10 @@ const els = {
   dueDateInput: document.querySelector("#dueDateInput"),
   ageDisplayInput: document.querySelector("#ageDisplayInput"),
   ageMonthsInput: document.querySelector("#ageMonthsInput"),
-  installButton: document.querySelector("#installButton"),
   exportButton: document.querySelector("#exportButton"),
   importInput: document.querySelector("#importInput"),
   resetAllButton: document.querySelector("#resetAllButton"),
 };
-
-let deferredInstallPrompt = null;
 
 function now() {
   return new Date();
@@ -1805,26 +1800,6 @@ function closeFeedDetails() {
   render();
 }
 
-function renderTopBar() {
-  const selectedDateLabel =
-    ui.historyDate === formatDateInput(now()) ? "Today" : formatDateLabel(ui.historyDate);
-
-  if (ui.activeTab === "sleep") {
-    els.topBarEyebrow.textContent = selectedDateLabel;
-    els.topBarTitle.textContent = "Sleep";
-    return;
-  }
-
-  if (ui.activeTab === "feed") {
-    els.topBarEyebrow.textContent = selectedDateLabel;
-    els.topBarTitle.textContent = "Feed";
-    return;
-  }
-
-  els.topBarEyebrow.textContent = state.profile.babyName || "Baby";
-  els.topBarTitle.textContent = "Settings";
-}
-
 function renderSleepDayView(sleepPlan) {
   const isCurrentDate = ui.historyDate === formatDateInput(now());
   const isFutureDate = parseDateValue(ui.historyDate) > startOfDay(now());
@@ -1987,7 +1962,6 @@ function render() {
   els.ageSummary.textContent = ageInfo.summary;
   els.manualFeedForm.hidden = ui.openComposer !== "feed";
 
-  renderTopBar();
   renderDateStrips();
   renderTabs();
   renderSleepModeSwitch();
@@ -2480,23 +2454,6 @@ els.dateOfBirthInput.addEventListener("input", syncAgePreview);
 els.dueDateInput.addEventListener("input", syncAgePreview);
 els.ageMonthsInput.addEventListener("input", syncAgePreview);
 els.babyNameInput.addEventListener("input", syncAgePreview);
-
-window.addEventListener("beforeinstallprompt", (event) => {
-  event.preventDefault();
-  deferredInstallPrompt = event;
-  els.installButton.hidden = false;
-});
-
-els.installButton.addEventListener("click", async () => {
-  if (!deferredInstallPrompt) {
-    return;
-  }
-
-  deferredInstallPrompt.prompt();
-  await deferredInstallPrompt.userChoice;
-  deferredInstallPrompt = null;
-  els.installButton.hidden = true;
-});
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {

@@ -62,7 +62,7 @@ button {
 .app-shell {
   width: min(100%, 520px);
   margin: 0 auto;
-  padding: max(16px, env(safe-area-inset-top)) 14px calc(100px + env(safe-area-inset-bottom));
+  padding: max(8px, env(safe-area-inset-top)) 14px calc(100px + env(safe-area-inset-bottom));
 }
 
 .tab-panel {
@@ -74,7 +74,6 @@ button {
   display: none !important;
 }
 
-.top-bar,
 .panel-heading,
 .history-heading,
 .upcoming-card,
@@ -85,23 +84,12 @@ button {
   justify-content: space-between;
 }
 
-.top-bar {
-  gap: 12px;
-  padding: 4px 2px 2px;
-}
-
-.top-title,
 h2,
 h3 {
   margin: 0;
   font-family: var(--font-heading);
   font-weight: 600;
   letter-spacing: -0.02em;
-}
-
-.top-title {
-  font-size: 1.9rem;
-  line-height: 0.98;
 }
 
 h2 {
