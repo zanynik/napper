@@ -34,7 +34,12 @@
         <button class="install-button" id="installButton" hidden>Install</button>
       </header>
 
-      <section class="panel quick-log-panel">
+      <nav class="tab-bar" aria-label="Primary sections">
+        <button class="tab-button is-active" id="sleepTabButton" type="button">Sleep</button>
+        <button class="tab-button" id="feedTabButton" type="button">Feed</button>
+      </nav>
+
+      <section class="panel quick-log-panel tab-panel" data-tab-panel="sleep">
         <div class="panel-heading">
           <div>
             <p class="eyebrow">Quick log</p>
@@ -64,24 +69,10 @@
               <button class="secondary-action" id="nightSecondaryButton" hidden>Final wake</button>
             </div>
           </article>
-
-          <article class="quick-card">
-            <p class="eyebrow">Feed</p>
-            <h3 id="feedHeadline">Log a feed in one tap</h3>
-            <p class="quick-note" id="feedQuickNote">
-              Choose the side or method used for this feed.
-            </p>
-            <div class="feed-button-grid">
-              <button class="secondary-action" id="feedLeftButton" type="button">Left</button>
-              <button class="secondary-action" id="feedRightButton" type="button">Right</button>
-              <button class="secondary-action" id="feedBothButton" type="button">Both</button>
-              <button class="secondary-action" id="feedBottleButton" type="button">Bottle</button>
-            </div>
-          </article>
         </div>
       </section>
 
-      <section class="panel plan-panel">
+      <section class="panel plan-panel tab-panel" data-tab-panel="sleep">
         <div class="panel-heading">
           <div>
             <p class="eyebrow">Predictions</p>
@@ -89,30 +80,51 @@
           </div>
         </div>
 
-        <div class="summary-grid">
-          <article class="next-card">
-            <p class="eyebrow">Next sleep</p>
-            <h3 id="nextSleepMain">Waiting for the first nap</h3>
-            <p id="nextSleepNote">Log a nap and the schedule will adapt.</p>
-          </article>
-
-          <article class="next-card">
-            <p class="eyebrow">Next feed</p>
-            <h3 id="nextFeedMain">Waiting for feed data</h3>
-            <p id="nextFeedNote">Log a few feeds and the timing will start to learn.</p>
-          </article>
-        </div>
+        <article class="next-card">
+          <p class="eyebrow">Next sleep</p>
+          <h3 id="nextSleepMain">Waiting for the first nap</h3>
+          <p id="nextSleepNote">Log a nap and the schedule will adapt.</p>
+        </article>
 
         <div class="plan-scale" id="planScale"></div>
         <div class="plan-track" id="planTrack" aria-label="Sleep plan visual"></div>
         <div class="upcoming-list" id="upcomingList"></div>
       </section>
 
+      <section class="panel tab-panel feed-panel" data-tab-panel="feed" hidden>
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Quick feed</p>
+            <h2>Log a feed fast</h2>
+          </div>
+        </div>
+
+        <article class="quick-card">
+          <p class="eyebrow">Feed</p>
+          <h3 id="feedHeadline">Log a feed in one tap</h3>
+          <p class="quick-note" id="feedQuickNote">
+            Choose the side or method used for this feed.
+          </p>
+          <div class="feed-button-grid">
+            <button class="secondary-action" id="feedLeftButton" type="button">Left</button>
+            <button class="secondary-action" id="feedRightButton" type="button">Right</button>
+            <button class="secondary-action" id="feedBothButton" type="button">Both</button>
+            <button class="secondary-action" id="feedBottleButton" type="button">Bottle</button>
+          </div>
+        </article>
+
+        <article class="next-card feed-next-card">
+          <p class="eyebrow">Next feed</p>
+          <h3 id="nextFeedMain">Waiting for feed data</h3>
+          <p id="nextFeedNote">Log a few feeds and the timing will start to learn.</p>
+        </article>
+      </section>
+
       <section class="panel history-panel">
         <div class="panel-heading history-heading">
           <div>
-            <p class="eyebrow">History</p>
-            <h2>See one day at a time</h2>
+            <p class="eyebrow" id="historyEyebrow">Sleep history</p>
+            <h2 id="historyTitle">See one day at a time</h2>
           </div>
           <label class="date-picker">
             <span class="sr-only">Choose date</span>

@@ -20,6 +20,9 @@ const feedPriors = [
 ];
 
 const els = {
+  sleepTabButton: document.querySelector("#sleepTabButton"),
+  feedTabButton: document.querySelector("#feedTabButton"),
+  tabPanels: document.querySelectorAll("[data-tab-panel]"),
   napHeadline: document.querySelector("#napHeadline"),
   napNote: document.querySelector("#napNote"),
   napToggleButton: document.querySelector("#napToggleButton"),
@@ -41,6 +44,8 @@ const els = {
   planTrack: document.querySelector("#planTrack"),
   upcomingList: document.querySelector("#upcomingList"),
   historyDateInput: document.querySelector("#historyDateInput"),
+  historyEyebrow: document.querySelector("#historyEyebrow"),
+  historyTitle: document.querySelector("#historyTitle"),
   historySummary: document.querySelector("#historySummary"),
   historyList: document.querySelector("#historyList"),
   manualNapForm: document.querySelector("#manualNapForm"),
@@ -375,6 +380,7 @@ function loadState() {
 const state = loadState();
 const ui = {
   historyDate: formatDateInput(now()),
+  activeTab: "sleep",
 };
 
 function saveState() {
@@ -1028,28 +1034,47 @@ function buildHistoryEntries(dateValue) {
   return entries.sort((a, b) => a.sortDate - b.sortDate);
 }
 
+function renderTabs() {
+  els.sleepTabButton.classList.toggle("is-active", ui.activeTab === "sleep");
+  els.feedTabButton.classList.toggle("is-active", ui.activeTab === "feed");
+
+  els.tabPanels.forEach((panel) => {
+    panel.hidden = panel.dataset.tabPanel !== ui.activeTab;
+  });
+}
+
 function renderHistory() {
-  const entries = buildHistoryEntries(ui.historyDate);
-  const napCount = entries.filter((entry) => entry.type === "nap").length;
-  const feedCount = entries.filter((entry) => entry.type === "feed").length;
-  const nightCount = entries.filter((entry) => entry.type === "night").length;
+  const allEntries = buildHistoryEntries(ui.historyDate);
+  const entries =
+    ui.activeTab === "sleep"
+      ? allEntries.filter((entry) => entry.type === "nap" || entry.type === "night")
+      : allEntries.filter((entry) => entry.type === "feed");
+  const napCount = allEntries.filter((entry) => entry.type === "nap").length;
+  const feedCount = allEntries.filter((entry) => entry.type === "feed").length;
+  const nightCount = allEntries.filter((entry) => entry.type === "night").length;
+
+  els.historyEyebrow.textContent = ui.activeTab === "sleep" ? "Sleep history" : "Feed history";
+  els.historyTitle.textContent = ui.activeTab === "sleep" ? "See one day at a time" : "See feeds by date";
 
   if (!entries.length) {
-    els.historySummary.textContent = `${formatDateLabel(ui.historyDate)} · no logs yet`;
-    els.historyList.innerHTML = `<div class="empty-state">No naps, night sleep, or feeds logged for this date yet.</div>`;
+    els.historySummary.textContent =
+      ui.activeTab === "sleep"
+        ? `${formatDateLabel(ui.historyDate)} · no sleep logs yet`
+        : `${formatDateLabel(ui.historyDate)} · no feeds logged yet`;
+    els.historyList.innerHTML =
+      ui.activeTab === "sleep"
+        ? `<div class="empty-state">No naps or night sleep logged for this date yet.</div>`
+        : `<div class="empty-state">No feeds logged for this date yet.</div>`;
     return;
   }
 
-  const summaryParts = [];
-  if (napCount) {
-    summaryParts.push(`${napCount} nap${napCount === 1 ? "" : "s"}`);
-  }
-  if (nightCount) {
-    summaryParts.push(`${nightCount} night${nightCount === 1 ? "" : "s"}`);
-  }
-  if (feedCount) {
-    summaryParts.push(`${feedCount} feed${feedCount === 1 ? "" : "s"}`);
-  }
+  const summaryParts =
+    ui.activeTab === "sleep"
+      ? [
+          napCount ? `${napCount} nap${napCount === 1 ? "" : "s"}` : null,
+          nightCount ? `${nightCount} night${nightCount === 1 ? "" : "s"}` : null,
+        ].filter(Boolean)
+      : [feedCount ? `${feedCount} feed${feedCount === 1 ? "" : "s"}` : null].filter(Boolean);
 
   els.historySummary.textContent = `${formatDateLabel(ui.historyDate)} · ${summaryParts.join(" · ")}`;
   els.historyList.innerHTML = entries
@@ -1124,6 +1149,7 @@ function render() {
 
   els.ageSummary.textContent = ageInfo.summary;
 
+  renderTabs();
   renderPlanScale(sleepPlan);
   renderPlanTrack(sleepPlan);
   renderUpcoming(sleepPlan);
@@ -1327,6 +1353,16 @@ els.feedLeftButton.addEventListener("click", () => addFeed("left"));
 els.feedRightButton.addEventListener("click", () => addFeed("right"));
 els.feedBothButton.addEventListener("click", () => addFeed("both"));
 els.feedBottleButton.addEventListener("click", () => addFeed("bottle"));
+
+els.sleepTabButton.addEventListener("click", () => {
+  ui.activeTab = "sleep";
+  render();
+});
+
+els.feedTabButton.addEventListener("click", () => {
+  ui.activeTab = "feed";
+  render();
+});
 
 els.manualNapForm.addEventListener("submit", (event) => {
   event.preventDefault();
