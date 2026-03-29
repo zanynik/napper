@@ -13,19 +13,20 @@ const agePriors = [
 
 const els = {
   headline: document.querySelector("#headline"),
-  dialMain: document.querySelector("#dialMain"),
-  dialSub: document.querySelector("#dialSub"),
-  dialSlices: document.querySelector("#dialSlices"),
-  dialTicks: document.querySelector("#dialTicks"),
-  dialNow: document.querySelector("#dialNow"),
+  statusNote: document.querySelector("#statusNote"),
   napToggleButton: document.querySelector("#napToggleButton"),
-  wakeWindowStat: document.querySelector("#wakeWindowStat"),
-  targetNapStat: document.querySelector("#targetNapStat"),
-  confidenceStat: document.querySelector("#confidenceStat"),
-  predictionCards: document.querySelector("#predictionCards"),
-  timelineList: document.querySelector("#timelineList"),
-  predictionCardTemplate: document.querySelector("#predictionCardTemplate"),
-  timelineItemTemplate: document.querySelector("#timelineItemTemplate"),
+  manualLogForm: document.querySelector("#manualLogForm"),
+  manualDateInput: document.querySelector("#manualDateInput"),
+  manualStartInput: document.querySelector("#manualStartInput"),
+  manualEndInput: document.querySelector("#manualEndInput"),
+  nextSleepMain: document.querySelector("#nextSleepMain"),
+  nextSleepNote: document.querySelector("#nextSleepNote"),
+  planScale: document.querySelector("#planScale"),
+  planTrack: document.querySelector("#planTrack"),
+  upcomingList: document.querySelector("#upcomingList"),
+  historyDateInput: document.querySelector("#historyDateInput"),
+  historySummary: document.querySelector("#historySummary"),
+  historyList: document.querySelector("#historyList"),
   settingsForm: document.querySelector("#settingsForm"),
   babyNameInput: document.querySelector("#babyNameInput"),
   ageMonthsInput: document.querySelector("#ageMonthsInput"),
@@ -34,8 +35,6 @@ const els = {
   baselineWakeInput: document.querySelector("#baselineWakeInput"),
   baselineNapInput: document.querySelector("#baselineNapInput"),
   installButton: document.querySelector("#installButton"),
-  resetTodayButton: document.querySelector("#resetTodayButton"),
-  useNowButton: document.querySelector("#useNowButton"),
   exportButton: document.querySelector("#exportButton"),
   importInput: document.querySelector("#importInput"),
   resetAllButton: document.querySelector("#resetAllButton"),
@@ -51,18 +50,16 @@ function startOfDay(date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
+function addDays(date, days) {
+  return new Date(date.getTime() + days * MS_IN_DAY);
+}
+
 function pad(value) {
   return String(value).padStart(2, "0");
 }
 
-function minutesToTime(minutes) {
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  return `${pad(hours)}:${pad(mins)}`;
-}
-
 function parseTime(value) {
-  const [hours, minutes] = value.split(":").map(Number);
+  const [hours, minutes] = String(value || "00:00").split(":").map(Number);
   return hours * 60 + minutes;
 }
 
@@ -86,6 +83,28 @@ function formatDuration(minutes) {
   return `${mins}m`;
 }
 
+function formatDateInput(dateLike) {
+  const date = new Date(dateLike);
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function parseDateValue(dateValue) {
+  const [year, month, day] = dateValue.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function formatDateLabel(dateLike) {
+  const date =
+    typeof dateLike === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dateLike)
+      ? parseDateValue(dateLike)
+      : new Date(dateLike);
+  return date.toLocaleDateString([], {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+}
+
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
@@ -94,7 +113,6 @@ function ewma(values, alpha = 0.45) {
   if (!values.length) {
     return null;
   }
-
   return values.slice(1).reduce((acc, value) => alpha * value + (1 - alpha) * acc, values[0]);
 }
 
@@ -102,16 +120,17 @@ function median(values) {
   if (!values.length) {
     return null;
   }
-
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
   return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
 function stddev(values) {
-  if (values.length < 2) return null;
-  const mean = values.reduce((a, b) => a + b, 0) / values.length;
-  const sumSqDiff = values.reduce((sum, v) => sum + (v - mean) ** 2, 0);
+  if (values.length < 2) {
+    return null;
+  }
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+  const sumSqDiff = values.reduce((sum, value) => sum + (value - mean) ** 2, 0);
   return Math.sqrt(sumSqDiff / (values.length - 1));
 }
 
@@ -119,14 +138,16 @@ function uid() {
   return Math.random().toString(36).slice(2, 10);
 }
 
+function combineDateAndTime(dateValue, timeValue) {
+  const [year, month, day] = dateValue.split("-").map(Number);
+  const [hours, minutes] = timeValue.split(":").map(Number);
+  return new Date(year, month - 1, day, hours, minutes);
+}
+
 function getPrior(ageMonths) {
   return agePriors.find((prior) => ageMonths <= prior.maxMonths) || agePriors[agePriors.length - 1];
 }
 
-// Circadian sleep propensity model (Process C, Borbély two-process model)
-// Babies have natural sleepy windows at ~9:30 AM and ~1:30 PM,
-// with a late-afternoon alerting period around 5 PM.
-// Circadian rhythms emerge around 2-3 months (Rivkees 2003).
 function circadianAdjustment(predictedStartTime, ageMonths) {
   const hour = predictedStartTime.getHours() + predictedStartTime.getMinutes() / 60;
   const circadianMaturity = clamp((ageMonths - 1) / 4, 0, 1);
@@ -134,12 +155,6 @@ function circadianAdjustment(predictedStartTime, ageMonths) {
   const afternoonDip = Math.exp(-0.5 * ((hour - 13.5) / 1.2) ** 2) * 15;
   const lateAlert = Math.exp(-0.5 * ((hour - 17) / 1.0) ** 2) * -8;
   return (morningDip + afternoonDip + lateAlert) * circadianMaturity;
-}
-
-function getTodaySleepTotal(todayNaps) {
-  return todayNaps
-    .filter((nap) => nap.endDate)
-    .reduce((sum, nap) => sum + (nap.endDate - nap.startDate) / 60000, 0);
 }
 
 function buildSeedState() {
@@ -156,62 +171,119 @@ function buildSeedState() {
   };
 }
 
+function normalizeState(candidate) {
+  const base = buildSeedState();
+  if (!candidate || typeof candidate !== "object") {
+    return base;
+  }
+
+  const profile = {
+    babyName: String(candidate.profile?.babyName || base.profile.babyName).slice(0, 24),
+    ageMonths: clamp(Number(candidate.profile?.ageMonths) || base.profile.ageMonths, 0, 36),
+    wakeTime: candidate.profile?.wakeTime || base.profile.wakeTime,
+    bedTime: candidate.profile?.bedTime || base.profile.bedTime,
+    baselineWake: clamp(Number(candidate.profile?.baselineWake) || base.profile.baselineWake, 30, 420),
+    baselineNap: clamp(Number(candidate.profile?.baselineNap) || base.profile.baselineNap, 20, 240),
+  };
+
+  const naps = Array.isArray(candidate.naps)
+    ? candidate.naps
+        .filter((nap) => nap && nap.start)
+        .map((nap) => {
+          const startDate = new Date(nap.start);
+          const endDate = nap.end ? new Date(nap.end) : null;
+          if (Number.isNaN(startDate.getTime()) || (endDate && Number.isNaN(endDate.getTime()))) {
+            return null;
+          }
+          return {
+            id: nap.id || uid(),
+            start: startDate.toISOString(),
+            end: endDate ? endDate.toISOString() : null,
+          };
+        })
+        .filter(Boolean)
+    : [];
+
+  return { profile, naps };
+}
+
 function loadState() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
-    if (saved && saved.profile && Array.isArray(saved.naps)) {
-      return saved;
-    }
+    return normalizeState(saved);
   } catch (error) {
     console.error("Failed to parse saved state", error);
+    return buildSeedState();
   }
-
-  return buildSeedState();
 }
 
 const state = loadState();
+const ui = {
+  historyDate: formatDateInput(now()),
+};
 
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
 function replaceState(nextState) {
-  state.profile = nextState.profile;
-  state.naps = nextState.naps;
+  const normalized = normalizeState(nextState);
+  state.profile = normalized.profile;
+  state.naps = normalized.naps;
+  ui.historyDate = formatDateInput(now());
   syncForm();
+  syncDateInputs();
   render();
 }
 
 function isValidState(candidate) {
-  return (
-    candidate &&
-    typeof candidate === "object" &&
-    candidate.profile &&
-    typeof candidate.profile === "object" &&
-    Array.isArray(candidate.naps)
-  );
+  return candidate && typeof candidate === "object" && candidate.profile && Array.isArray(candidate.naps);
 }
 
-function getTodayBounds() {
-  const base = startOfDay(now());
-  const dayStart = new Date(base.getTime() + parseTime(state.profile.wakeTime) * 60000);
-  const dayEnd = new Date(base.getTime() + parseTime(state.profile.bedTime) * 60000);
-  return { dayStart, dayEnd };
-}
-
-function getCompletedNaps() {
+function getParsedNaps() {
   return state.naps
-    .filter((nap) => nap.end)
     .map((nap) => ({
       ...nap,
       startDate: new Date(nap.start),
-      endDate: new Date(nap.end),
+      endDate: nap.end ? new Date(nap.end) : null,
     }))
+    .filter((nap) => !Number.isNaN(nap.startDate.getTime()))
     .sort((a, b) => a.startDate - b.startDate);
+}
+
+function getCompletedNaps() {
+  return getParsedNaps().filter((nap) => nap.endDate && nap.endDate > nap.startDate);
 }
 
 function getActiveNap() {
   return state.naps.find((nap) => !nap.end) || null;
+}
+
+function getActiveNapEvent() {
+  const activeNap = getActiveNap();
+  if (!activeNap) {
+    return null;
+  }
+  return {
+    ...activeNap,
+    startDate: new Date(activeNap.start),
+    endDate: null,
+  };
+}
+
+function getTodayBounds() {
+  const today = startOfDay(now());
+  const dayStart = new Date(today.getTime() + parseTime(state.profile.wakeTime) * 60000);
+  const dayEnd = new Date(today.getTime() + parseTime(state.profile.bedTime) * 60000);
+  return { dayStart, dayEnd };
+}
+
+function getTodayEvents() {
+  const { dayStart, dayEnd } = getTodayBounds();
+  return getParsedNaps().filter((nap) => {
+    const napEnd = nap.endDate || now();
+    return nap.startDate < dayEnd && napEnd > dayStart;
+  });
 }
 
 function recentWakeWindows() {
@@ -219,8 +291,10 @@ function recentWakeWindows() {
   const values = [];
 
   naps.forEach((nap, index) => {
-    const prevEnd = index === 0 ? null : naps[index - 1].endDate;
-    const wakeAnchor = prevEnd || new Date(startOfDay(nap.startDate).getTime() + parseTime(state.profile.wakeTime) * 60000);
+    const previousEnd = index === 0 ? null : naps[index - 1].endDate;
+    const wakeAnchor =
+      previousEnd ||
+      new Date(startOfDay(nap.startDate).getTime() + parseTime(state.profile.wakeTime) * 60000);
     const wakeMinutes = (nap.startDate - wakeAnchor) / 60000;
     if (wakeMinutes > 20 && wakeMinutes < 500) {
       values.push(wakeMinutes);
@@ -277,21 +351,13 @@ function getPredictionModel() {
     wakeBase: clamp(blendedWakeBase, prior.wakeRange[0], prior.wakeRange[1]),
     napBase: clamp(blendedNapBase, 25, 180),
     confidenceScore,
-    wakeDeviation,
   };
 }
 
-function getTodayEvents() {
-  const { dayStart, dayEnd } = getTodayBounds();
-  return state.naps
-    .map((nap) => ({
-      ...nap,
-      startDate: new Date(nap.start),
-      endDate: nap.end ? new Date(nap.end) : null,
-    }))
-    .filter((nap) => nap.startDate >= startOfDay(now()) && nap.startDate <= dayEnd)
-    .sort((a, b) => a.startDate - b.startDate)
-    .filter((nap) => nap.startDate >= dayStart || (nap.endDate && nap.endDate >= dayStart));
+function getTodaySleepTotal(todayNaps) {
+  return todayNaps
+    .filter((nap) => nap.endDate)
+    .reduce((sum, nap) => sum + (nap.endDate - nap.startDate) / 60000, 0);
 }
 
 function getCurrentWakeAnchor(todayNaps, dayStart) {
@@ -312,28 +378,26 @@ function buildPredictions() {
   const { dayStart, dayEnd } = getTodayBounds();
   const model = getPredictionModel();
   const todayNaps = getTodayEvents();
-  const activeNap = getActiveNap();
+  const activeNap = getActiveNapEvent();
   const predictions = [];
   const todaySleepTotal = getTodaySleepTotal(todayNaps);
   const remainingDaySleepBudget = Math.max(0, model.prior.totalDaySleep - todaySleepTotal);
 
   if (activeNap) {
-    const activeStart = new Date(activeNap.start);
     const plannedLength = clamp(Math.min(model.napBase, Math.max(remainingDaySleepBudget, 25)), 25, 180);
-    const end = new Date(activeStart.getTime() + plannedLength * 60000);
+    const end = new Date(activeNap.startDate.getTime() + plannedLength * 60000);
     predictions.push({
       kind: "active",
-      start: activeStart,
+      start: activeNap.startDate,
       end,
-      title: "Current nap",
-      note: `Likely to end around ${formatClock(end)} with ${formatDuration(
-        Math.max(0, remainingDaySleepBudget - plannedLength),
-      )} of daytime sleep budget left.`,
+      title: "Sleeping now",
+      targetNap: plannedLength,
+      note: `Likely to end around ${formatClock(end)}.`,
     });
   }
 
   let cursor = activeNap
-    ? new Date(new Date(activeNap.start).getTime() + model.napBase * 60000)
+    ? new Date(activeNap.startDate.getTime() + model.napBase * 60000)
     : getCurrentWakeAnchor(todayNaps, dayStart);
   let napIndex = todayNaps.filter((nap) => nap.endDate).length + (activeNap ? 1 : 0);
   let shortNapAdjustment = 0;
@@ -370,22 +434,21 @@ function buildPredictions() {
     const napScale = napIndex === 0 ? 1.05 : napIndex >= model.prior.naps - 1 ? 0.85 : 1;
     const remainingBudget = Math.max(0, model.prior.totalDaySleep - projectedDaySleep);
     const budgetTaper = remainingBudget <= model.napBase ? clamp(remainingBudget / model.napBase, 0.45, 1) : 1;
-    const targetNap = clamp(Math.min(model.napBase * napScale * budgetTaper, Math.max(remainingBudget, 25)), 25, 150);
+    const targetNap = clamp(
+      Math.min(model.napBase * napScale * budgetTaper, Math.max(remainingBudget, 25)),
+      25,
+      150,
+    );
     const end = new Date(Math.min(start.getTime() + targetNap * 60000, dayEnd.getTime()));
-    const budgetAfterNap = Math.max(0, remainingBudget - targetNap);
 
     predictions.push({
       kind: "predicted",
       start,
       end,
-      title: napIndex >= model.prior.naps - 1 ? "Likely last nap" : `Predicted nap ${napIndex + 1}`,
-      note: `${formatDuration(targetWake)} awake, ${formatDuration(targetNap)} target sleep, ${formatDuration(
-        budgetAfterNap,
-      )} daytime budget left.`,
+      title: napIndex >= model.prior.naps - 1 ? "Last nap" : `Nap ${napIndex + 1}`,
       targetWake,
       targetNap,
-      circadianMinutes,
-      budgetAfterNap,
+      note: `${formatDuration(targetNap)} sleep after about ${formatDuration(targetWake)} awake.`,
     });
 
     cursor = end;
@@ -397,222 +460,226 @@ function buildPredictions() {
   return { predictions, model, todaySleepTotal };
 }
 
-function describeConfidence(score) {
-  if (score >= 78) {
-    return "high";
-  }
-  if (score >= 58) {
-    return "medium";
-  }
-  return "learning";
-}
-
-function getNextPredictionInfo() {
-  const activeNap = getActiveNap();
-  const { predictions, model, todaySleepTotal } = buildPredictions();
-
-  if (activeNap) {
-    const end = new Date(activeNap.start);
-    end.setMinutes(end.getMinutes() + model.napBase);
-    return {
-      title: "Current nap",
-      main: formatClock(end),
-      sub: `likely end in ${formatDuration((end - now()) / 60000)}`,
-      wake: model.wakeBase,
-      nap: model.napBase,
-      confidence: describeConfidence(model.confidenceScore),
-      predictions,
-      model,
-      todaySleepTotal,
-    };
-  }
-
-  const next = predictions.find((prediction) => prediction.kind === "predicted");
-  if (!next) {
-    return {
-      title: "Day complete",
-      main: formatClock(getTodayBounds().dayEnd),
-      sub: "bedtime is the next big sleep",
-      wake: model.wakeBase,
-      nap: model.napBase,
-      confidence: describeConfidence(model.confidenceScore),
-      predictions,
-      model,
-      todaySleepTotal,
-    };
-  }
-
-  const minutesAway = Math.round((next.start - now()) / 60000);
-  return {
-    title: next.title,
-    main: formatClock(next.start),
-    sub: minutesAway <= 0 ? "ready now" : `in ${formatDuration(minutesAway)}`,
-    wake: next.targetWake || model.wakeBase,
-    nap: next.targetNap || model.napBase,
-    confidence: describeConfidence(model.confidenceScore),
-    predictions,
-    model,
-    todaySleepTotal,
-  };
-}
-
-function polarPoint(cx, cy, radius, angleDeg) {
-  const radians = ((angleDeg - 90) * Math.PI) / 180;
-  return {
-    x: cx + radius * Math.cos(radians),
-    y: cy + radius * Math.sin(radians),
-  };
-}
-
-function arcPath(cx, cy, radius, startAngle, endAngle) {
-  const start = polarPoint(cx, cy, radius, startAngle);
-  const end = polarPoint(cx, cy, radius, endAngle);
-  const largeArcFlag = endAngle - startAngle > 180 ? 1 : 0;
-  return `M ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArcFlag} 1 ${end.x} ${end.y}`;
-}
-
-function angleForTime(date, dayStart, dayEnd) {
-  const fraction = clamp((date - dayStart) / (dayEnd - dayStart), 0, 1);
-  return fraction * 360;
-}
-
-function renderDial(todayNaps, predictionData) {
+function buildSleepPlan() {
   const { dayStart, dayEnd } = getTodayBounds();
-  els.dialSlices.innerHTML = "";
-  els.dialTicks.innerHTML = "";
-  els.dialNow.innerHTML = "";
+  const tomorrowWake = new Date(startOfDay(dayStart).getTime() + MS_IN_DAY + parseTime(state.profile.wakeTime) * 60000);
+  const { predictions, model } = buildPredictions();
 
-  [0, 0.25, 0.5, 0.75, 1].forEach((step) => {
-    const angle = step * 360;
-    const inner = polarPoint(180, 180, 110, angle);
-    const outer = polarPoint(180, 180, 140, angle);
-    const labelPoint = polarPoint(180, 180, 156, angle);
-    const tick = document.createElementNS("http://www.w3.org/2000/svg", "line");
-    tick.setAttribute("class", "dial-tick");
-    tick.setAttribute("x1", inner.x);
-    tick.setAttribute("y1", inner.y);
-    tick.setAttribute("x2", outer.x);
-    tick.setAttribute("y2", outer.y);
-    els.dialTicks.appendChild(tick);
+  const blocks = predictions.map((prediction) => ({
+    kind: prediction.kind,
+    start: prediction.start,
+    end: prediction.end,
+    title: prediction.title,
+    note: prediction.note,
+  }));
 
-    const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
-    label.setAttribute("class", "dial-tick-label");
-    label.setAttribute("x", labelPoint.x);
-    label.setAttribute("y", labelPoint.y);
-    label.setAttribute("text-anchor", "middle");
-    label.textContent = formatClock(new Date(dayStart.getTime() + step * (dayEnd - dayStart)));
-    els.dialTicks.appendChild(label);
-  });
-
-  todayNaps.forEach((nap) => {
-    const startAngle = angleForTime(nap.startDate, dayStart, dayEnd);
-    const endDate = nap.endDate || now();
-    const endAngle = angleForTime(endDate, dayStart, dayEnd);
-    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute("class", `dial-slice ${nap.endDate ? "logged" : "active"}`);
-    path.setAttribute("d", arcPath(180, 180, 128, startAngle, endAngle));
-    els.dialSlices.appendChild(path);
-  });
-
-  predictionData.predictions
-    .filter((prediction) => prediction.kind === "predicted")
-    .forEach((prediction) => {
-      const startAngle = angleForTime(prediction.start, dayStart, dayEnd);
-      const endAngle = angleForTime(prediction.end, dayStart, dayEnd);
-      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      path.setAttribute("class", "dial-slice predicted");
-      path.setAttribute("d", arcPath(180, 180, 128, startAngle, endAngle));
-      els.dialSlices.appendChild(path);
+  if (tomorrowWake > now()) {
+    blocks.push({
+      kind: "night",
+      start: dayEnd,
+      end: tomorrowWake,
+      title: "Night sleep",
+      note: `Bedtime around ${formatClock(dayEnd)} and next wake around ${formatClock(tomorrowWake)} tomorrow.`,
     });
+  }
 
-  const nowAngle = angleForTime(now(), dayStart, dayEnd);
-  const inner = polarPoint(180, 180, 92, nowAngle);
-  const outer = polarPoint(180, 180, 144, nowAngle);
-  const nowLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
-  nowLine.setAttribute("class", "dial-now-line");
-  nowLine.setAttribute("x1", inner.x);
-  nowLine.setAttribute("y1", inner.y);
-  nowLine.setAttribute("x2", outer.x);
-  nowLine.setAttribute("y2", outer.y);
-  els.dialNow.appendChild(nowLine);
+  blocks.sort((a, b) => a.start - b.start);
 
-  const nowDot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-  nowDot.setAttribute("class", "dial-now-dot");
-  nowDot.setAttribute("cx", outer.x);
-  nowDot.setAttribute("cy", outer.y);
-  nowDot.setAttribute("r", 5);
-  els.dialNow.appendChild(nowDot);
+  return {
+    model,
+    blocks,
+    dayStart,
+    dayEnd,
+    tomorrowWake,
+  };
 }
 
-function renderPredictions(predictionData) {
-  els.predictionCards.innerHTML = "";
-  const items = predictionData.predictions.filter((prediction) => prediction.kind !== "active").slice(0, 3);
+function getNextSleepSummary(plan) {
+  const active = plan.blocks.find((block) => block.kind === "active" && block.end > now());
+  if (active) {
+    return {
+      main: `${state.profile.babyName} is sleeping now`,
+      note: `Likely to wake around ${formatClock(active.end)}.`,
+    };
+  }
 
-  if (!items.length) {
-    const empty = document.createElement("div");
-    empty.className = "timeline-empty";
-    empty.textContent = "No more predicted naps for today. The planner is holding for bedtime.";
-    els.predictionCards.appendChild(empty);
+  const nextBlock = plan.blocks.find((block) => block.end > now());
+  if (!nextBlock) {
+    return {
+      main: "No more sleep blocks today",
+      note: "Tomorrow's schedule will begin from the next wake time.",
+    };
+  }
+
+  if (nextBlock.kind === "night") {
+    return {
+      main: `Night sleep around ${formatClock(nextBlock.start)}`,
+      note: `Expected until about ${formatClock(nextBlock.end)} tomorrow morning.`,
+    };
+  }
+
+  return {
+    main: `${nextBlock.title} around ${formatClock(nextBlock.start)}`,
+    note: `${formatDuration((nextBlock.end - nextBlock.start) / 60000)} of likely sleep.`,
+  };
+}
+
+function getFocusCopy(plan) {
+  const activeNap = getActiveNapEvent();
+  if (activeNap) {
+    return {
+      headline: `${state.profile.babyName} is sleeping`,
+      note: `Started at ${formatClock(activeNap.startDate)}. Tap once when the nap ends.`,
+      button: "End nap now",
+    };
+  }
+
+  const nextBlock = plan.blocks.find((block) => block.kind !== "night" && block.end > now());
+  if (nextBlock) {
+    const minutesUntil = Math.round((nextBlock.start - now()) / 60000);
+    return {
+      headline: `Next nap around ${formatClock(nextBlock.start)}`,
+      note: minutesUntil <= 0 ? "Sleep could happen any time now." : `Likely in about ${formatDuration(minutesUntil)}.`,
+      button: "Start nap now",
+    };
+  }
+
+  return {
+    headline: `Next big sleep around ${formatClock(plan.dayEnd)}`,
+    note: "If a surprise nap happens, you can still log it here.",
+    button: "Start nap now",
+  };
+}
+
+function getPlanSegments(plan) {
+  const rangeStart = plan.dayStart;
+  const rangeEnd = plan.tomorrowWake;
+
+  const loggedSegments = getTodayEvents().map((nap) => ({
+    kind: nap.endDate ? "logged" : "active",
+    start: nap.startDate,
+    end: nap.endDate || now(),
+  }));
+
+  const futureSegments = plan.blocks
+    .filter((block) => block.kind === "predicted" || block.kind === "night")
+    .map((block) => ({
+      kind: block.kind,
+      start: block.start,
+      end: block.end,
+    }));
+
+  return [...loggedSegments, ...futureSegments]
+    .filter((segment) => segment.end > rangeStart && segment.start < rangeEnd)
+    .map((segment) => ({
+      ...segment,
+      left: clamp(((segment.start - rangeStart) / (rangeEnd - rangeStart)) * 100, 0, 100),
+      width: clamp(((segment.end - segment.start) / (rangeEnd - rangeStart)) * 100, 0.8, 100),
+    }));
+}
+
+function renderPlanScale(plan) {
+  const markers = [
+    { label: `Wake ${formatClock(plan.dayStart)}` },
+    { label: "Midday" },
+    { label: `Bed ${formatClock(plan.dayEnd)}` },
+    { label: "Midnight" },
+    { label: `Wake ${formatClock(plan.tomorrowWake)}` },
+  ];
+
+  els.planScale.innerHTML = markers
+    .map((marker) => `<div class="scale-label">${marker.label}</div>`)
+    .join("");
+}
+
+function renderPlanTrack(plan) {
+  const segments = getPlanSegments(plan);
+  const rangeStart = plan.dayStart;
+  const rangeEnd = plan.tomorrowWake;
+
+  if (!segments.length) {
+    els.planTrack.innerHTML = `<div class="plan-track-empty">No naps logged yet. The bar will fill in as naps happen and predictions update.</div>`;
     return;
   }
 
-  items.forEach((prediction) => {
-    const node = els.predictionCardTemplate.content.firstElementChild.cloneNode(true);
-    node.querySelector(".prediction-time").textContent = formatClock(prediction.start);
-    node.querySelector(".prediction-title").textContent = prediction.title;
-    node.querySelector(".prediction-note").textContent = prediction.note;
-    els.predictionCards.appendChild(node);
-  });
+  const nowPosition = clamp(((now() - rangeStart) / (rangeEnd - rangeStart)) * 100, 0, 100);
+
+  const segmentMarkup = segments
+    .map(
+      (segment) =>
+        `<div class="plan-segment plan-segment-${segment.kind}" style="left:${segment.left}%;width:${segment.width}%"></div>`,
+    )
+    .join("");
+
+  els.planTrack.innerHTML = `${segmentMarkup}<div class="plan-now-marker" style="left:${nowPosition}%"></div>`;
 }
 
-function renderTimeline(todayNaps, predictionData) {
-  els.timelineList.innerHTML = "";
-  const items = [];
+function renderUpcoming(plan) {
+  const upcoming = plan.blocks.filter((block) => block.end > now()).slice(0, 4);
 
-  todayNaps.forEach((nap) => {
-    const isActive = !nap.endDate;
-    items.push({
-      title: isActive ? "Nap in progress" : "Logged nap",
-      time: `${formatClock(nap.startDate)}${nap.endDate ? ` - ${formatClock(nap.endDate)}` : ""}`,
-      note: isActive
-        ? "Tap End nap when the sleep ends."
-        : `${formatDuration((nap.endDate - nap.startDate) / 60000)} total sleep.`,
-      sortKey: nap.startDate.getTime(),
-      state: isActive ? "active" : "logged",
-    });
-  });
-
-  predictionData.predictions
-    .filter((prediction) => prediction.kind === "predicted")
-    .slice(0, 3)
-    .forEach((prediction) => {
-      items.push({
-        title: prediction.title,
-        time: `${formatClock(prediction.start)} - ${formatClock(prediction.end)}`,
-        note: prediction.note,
-        sortKey: prediction.start.getTime(),
-        state: "predicted",
-      });
-    });
-
-  if (!items.length) {
-    const empty = document.createElement("div");
-    empty.className = "timeline-empty";
-    empty.textContent = "No naps logged yet. Start the first nap and predictions will appear here.";
-    els.timelineList.appendChild(empty);
+  if (!upcoming.length) {
+    els.upcomingList.innerHTML = `<div class="empty-state">No upcoming sleep blocks yet.</div>`;
     return;
   }
 
-  items
-    .sort((a, b) => a.sortKey - b.sortKey)
-    .forEach((item) => {
-      const node = els.timelineItemTemplate.content.firstElementChild.cloneNode(true);
-      node.classList.add(`timeline-item-${item.state}`);
-      node.querySelector(".timeline-title").textContent = item.title;
-      node.querySelector(".timeline-time").textContent = item.time;
-      node.querySelector(".timeline-note").textContent = item.note;
-      els.timelineList.appendChild(node);
-    });
+  els.upcomingList.innerHTML = upcoming
+    .map(
+      (block) => `
+        <article class="upcoming-card">
+          <div class="upcoming-card-time">${formatClock(block.start)} - ${formatClock(block.end)}</div>
+          <div class="upcoming-card-copy">
+            <strong>${block.title}</strong>
+            <p>${block.note}</p>
+          </div>
+        </article>
+      `,
+    )
+    .join("");
+}
+
+function getNapsForDate(dateValue) {
+  const rangeStart = combineDateAndTime(dateValue, "00:00");
+  const rangeEnd = addDays(rangeStart, 1);
+  return getParsedNaps().filter((nap) => nap.startDate >= rangeStart && nap.startDate < rangeEnd);
+}
+
+function renderHistory() {
+  const naps = getNapsForDate(ui.historyDate);
+  const finishedMinutes = naps
+    .filter((nap) => nap.endDate)
+    .reduce((sum, nap) => sum + (nap.endDate - nap.startDate) / 60000, 0);
+
+  if (!naps.length) {
+    els.historySummary.textContent = `${formatDateLabel(ui.historyDate)} · no naps logged`;
+    els.historyList.innerHTML = `<div class="empty-state">No naps logged for this date yet.</div>`;
+    return;
+  }
+
+  els.historySummary.textContent = `${formatDateLabel(ui.historyDate)} · ${naps.length} nap${
+    naps.length === 1 ? "" : "s"
+  } · ${formatDuration(finishedMinutes)} total`;
+
+  els.historyList.innerHTML = naps
+    .map((nap, index) => {
+      const timeLabel = nap.endDate
+        ? `${formatClock(nap.startDate)} - ${formatClock(nap.endDate)}`
+        : `${formatClock(nap.startDate)} - in progress`;
+      const note = nap.endDate
+        ? `${formatDuration((nap.endDate - nap.startDate) / 60000)} total sleep.`
+        : "Currently still running.";
+
+      return `
+        <article class="history-item">
+          <div class="history-time">${timeLabel}</div>
+          <div class="history-copy">
+            <strong>Nap ${index + 1}</strong>
+            <p>${note}</p>
+          </div>
+          <button class="history-delete" type="button" data-delete-nap="${nap.id}">Delete</button>
+        </article>
+      `;
+    })
+    .join("");
 }
 
 function syncForm() {
@@ -625,27 +692,34 @@ function syncForm() {
   els.baselineNapInput.value = profile.baselineNap;
 }
 
+function syncDateInputs() {
+  els.historyDateInput.value = ui.historyDate;
+  els.manualDateInput.value = ui.historyDate;
+}
+
 function render() {
-  const profile = state.profile;
-  const todayNaps = getTodayEvents();
-  const predictionData = getNextPredictionInfo();
-  const daySleepBudgetRemaining = Math.max(0, predictionData.model.prior.totalDaySleep - predictionData.todaySleepTotal);
+  const plan = buildSleepPlan();
+  const summary = getNextSleepSummary(plan);
+  const focus = getFocusCopy(plan);
 
-  els.headline.textContent = `${profile.babyName}'s next sleep`;
-  els.dialMain.textContent = predictionData.main;
-  els.dialSub.textContent = `${predictionData.sub} · ${formatDuration(daySleepBudgetRemaining)} day sleep left`;
-  els.wakeWindowStat.textContent = formatDuration(predictionData.wake);
-  els.targetNapStat.textContent = formatDuration(predictionData.nap);
-  els.confidenceStat.textContent = predictionData.confidence;
-  els.napToggleButton.textContent = getActiveNap() ? "End nap" : "Start nap";
+  els.headline.textContent = focus.headline;
+  els.statusNote.textContent = focus.note;
+  els.napToggleButton.textContent = focus.button;
+  els.nextSleepMain.textContent = summary.main;
+  els.nextSleepNote.textContent = summary.note;
 
-  renderDial(todayNaps, predictionData);
-  renderPredictions(predictionData);
-  renderTimeline(todayNaps, predictionData);
+  renderPlanScale(plan);
+  renderPlanTrack(plan);
+  renderUpcoming(plan);
+  renderHistory();
   saveState();
 }
 
 function startNap() {
+  if (getActiveNap()) {
+    return;
+  }
+
   state.naps.push({
     id: uid(),
     start: now().toISOString(),
@@ -663,9 +737,27 @@ function endNap() {
   render();
 }
 
-function resetToday() {
-  const { dayStart } = getTodayBounds();
-  state.naps = state.naps.filter((nap) => new Date(nap.start) < dayStart);
+function addManualNap(dateValue, startTime, endTime) {
+  const start = combineDateAndTime(dateValue, startTime);
+  const end = combineDateAndTime(dateValue, endTime);
+
+  if (end <= start) {
+    window.alert("End time needs to be after the start time.");
+    return;
+  }
+
+  state.naps.push({
+    id: uid(),
+    start: start.toISOString(),
+    end: end.toISOString(),
+  });
+
+  ui.historyDate = dateValue;
+  render();
+}
+
+function deleteNap(id) {
+  state.naps = state.naps.filter((nap) => nap.id !== id);
   render();
 }
 
@@ -676,12 +768,12 @@ function exportData() {
     version: 1,
     state,
   };
+
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
-  const stamp = new Date().toISOString().slice(0, 10);
   link.href = url;
-  link.download = `napper-backup-${stamp}.json`;
+  link.download = `napper-backup-${formatDateInput(now())}.json`;
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -708,19 +800,37 @@ els.napToggleButton.addEventListener("click", () => {
   }
 });
 
-els.useNowButton.addEventListener("click", () => {
-  if (!getActiveNap()) {
-    startNap();
+els.manualLogForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  addManualNap(els.manualDateInput.value, els.manualStartInput.value, els.manualEndInput.value);
+  els.manualStartInput.value = "";
+  els.manualEndInput.value = "";
+});
+
+els.historyDateInput.addEventListener("change", (event) => {
+  ui.historyDate = event.target.value || formatDateInput(now());
+  syncDateInputs();
+  renderHistory();
+});
+
+els.historyList.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-delete-nap]");
+  if (!button) {
+    return;
+  }
+
+  if (window.confirm("Delete this nap?")) {
+    deleteNap(button.dataset.deleteNap);
   }
 });
 
-els.resetTodayButton.addEventListener("click", resetToday);
 els.exportButton.addEventListener("click", exportData);
 els.resetAllButton.addEventListener("click", () => {
   if (window.confirm("Reset the profile and remove all saved nap data on this device?")) {
     resetAll();
   }
 });
+
 els.importInput.addEventListener("change", async (event) => {
   const [file] = event.target.files || [];
   if (!file) {
@@ -777,6 +887,7 @@ if ("serviceWorker" in navigator) {
 }
 
 syncForm();
+syncDateInputs();
 render();
 
 setInterval(() => {

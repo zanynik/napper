@@ -9,9 +9,9 @@
     <title>Napper Web</title>
     <meta
       name="description"
-      content="Installable baby nap planner with a circular day view, one-tap nap logging, and age-aware predictions."
+      content="Simple baby nap logger with easy past-nap entry, clear sleep predictions, and date-based history."
     />
-    <meta name="theme-color" content="#f2eee8" />
+    <meta name="theme-color" content="#f4efe8" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Napper Web" />
@@ -23,100 +23,97 @@
   <body>
     <main class="app-shell">
       <header class="app-header">
-        <div>
-          <p class="eyebrow">Installable nap planner</p>
+        <div class="header-copy">
+          <p class="eyebrow">Simple nap log</p>
           <h1>Napper Web</h1>
+          <p class="lede">
+            Log naps quickly, add naps that already happened, and see what sleep
+            is likely next.
+          </p>
         </div>
         <button class="install-button" id="installButton" hidden>Install</button>
       </header>
 
-      <section class="panel dial-panel">
+      <section class="panel focus-panel">
         <div class="panel-heading">
           <div>
-            <p class="eyebrow">Today</p>
-            <h2 id="headline">Next nap prediction</h2>
+            <p class="eyebrow">Right now</p>
+            <h2 id="headline">Ready to log the next nap</h2>
           </div>
-          <button class="chip-button" id="useNowButton">Use now</button>
         </div>
 
-        <div class="dial-wrap">
-          <svg
-            class="day-dial"
-            id="dayDial"
-            viewBox="0 0 360 360"
-            role="img"
-            aria-label="Circular day planner"
-          >
-            <defs>
-              <filter id="softGlow">
-                <feGaussianBlur stdDeviation="3"></feGaussianBlur>
-              </filter>
-            </defs>
-            <circle class="dial-track" cx="180" cy="180" r="128"></circle>
-            <g id="dialSlices"></g>
-            <g id="dialTicks"></g>
-            <circle class="dial-core" cx="180" cy="180" r="84"></circle>
-            <text class="dial-label-top" x="180" y="148" text-anchor="middle">
-              likely next sleep
-            </text>
-            <text class="dial-label-main" id="dialMain" x="180" y="182" text-anchor="middle">
-              1:35 PM
-            </text>
-            <text class="dial-label-sub" id="dialSub" x="180" y="208" text-anchor="middle">
-              in 24 min
-            </text>
-            <g id="dialNow"></g>
-          </svg>
-        </div>
+        <p class="focus-note" id="statusNote">
+          Tap once when a nap starts, then tap again when it ends.
+        </p>
 
-        <div class="primary-stack">
-          <button class="primary-action" id="napToggleButton">Start nap</button>
-          <div class="summary-grid">
-            <article class="summary-card">
-              <span>Wake window</span>
-              <strong id="wakeWindowStat">2h 15m</strong>
-            </article>
-            <article class="summary-card">
-              <span>Target nap</span>
-              <strong id="targetNapStat">1h 20m</strong>
-            </article>
-            <article class="summary-card">
-              <span>Confidence</span>
-              <strong id="confidenceStat">medium</strong>
-            </article>
-          </div>
+        <div class="focus-actions">
+          <button class="primary-action" id="napToggleButton">Start nap now</button>
         </div>
       </section>
 
-      <section class="panel prediction-panel">
+      <section class="panel quick-log-panel">
         <div class="panel-heading">
           <div>
-            <p class="eyebrow">Predictions</p>
-            <h2>Planned day</h2>
+            <p class="eyebrow">Past nap</p>
+            <h2>Add a nap that already happened</h2>
           </div>
-          <span class="pill" id="predictionMethod">Circadian + EWMA + age priors</span>
         </div>
-        <div class="prediction-cards" id="predictionCards"></div>
+
+        <form id="manualLogForm" class="manual-form">
+          <label>
+            Date
+            <input id="manualDateInput" name="manualDate" type="date" required />
+          </label>
+          <label>
+            Start
+            <input id="manualStartInput" name="manualStart" type="time" required />
+          </label>
+          <label>
+            End
+            <input id="manualEndInput" name="manualEnd" type="time" required />
+          </label>
+          <button class="secondary-action" type="submit">Save nap</button>
+        </form>
       </section>
 
-      <section class="panel timeline-panel">
+      <section class="panel plan-panel">
         <div class="panel-heading">
           <div>
-            <p class="eyebrow">Logs</p>
-            <h2>Nap timeline</h2>
+            <p class="eyebrow">Sleep plan</p>
+            <h2>Today and tonight</h2>
           </div>
-          <button class="chip-button" id="resetTodayButton">Reset today</button>
         </div>
-        <div class="timeline-list" id="timelineList"></div>
+
+        <article class="next-sleep-card">
+          <p class="eyebrow">Next sleep</p>
+          <h3 id="nextSleepMain">Waiting for the first nap</h3>
+          <p id="nextSleepNote">Log a nap and the schedule will adapt.</p>
+        </article>
+
+        <div class="plan-scale" id="planScale"></div>
+        <div class="plan-track" id="planTrack" aria-label="Sleep plan visual"></div>
+
+        <div class="upcoming-list" id="upcomingList"></div>
       </section>
 
-      <section class="panel settings-panel">
-        <div class="panel-heading">
+      <section class="panel history-panel">
+        <div class="panel-heading history-heading">
           <div>
-            <p class="eyebrow">Inputs</p>
-            <h2>Baby profile</h2>
+            <p class="eyebrow">History</p>
+            <h2>See naps by date</h2>
           </div>
+          <label class="date-picker">
+            <span class="sr-only">Choose date</span>
+            <input id="historyDateInput" type="date" />
+          </label>
         </div>
+
+        <p class="history-summary" id="historySummary"></p>
+        <div class="history-list" id="historyList"></div>
+      </section>
+
+      <details class="panel details-panel">
+        <summary>Sleep settings</summary>
 
         <form id="settingsForm" class="settings-form">
           <label>
@@ -128,7 +125,7 @@
             <input id="ageMonthsInput" name="ageMonths" type="number" min="0" max="36" />
           </label>
           <label>
-            Day start
+            Wake time
             <input id="wakeTimeInput" name="wakeTime" type="time" />
           </label>
           <label>
@@ -136,7 +133,7 @@
             <input id="bedTimeInput" name="bedTime" type="time" />
           </label>
           <label>
-            Baseline wake window (minutes)
+            Typical wake window (minutes)
             <input
               id="baselineWakeInput"
               name="baselineWake"
@@ -146,7 +143,7 @@
             />
           </label>
           <label>
-            Baseline nap length (minutes)
+            Typical nap length (minutes)
             <input
               id="baselineNapInput"
               name="baselineNap"
@@ -155,61 +152,32 @@
               max="240"
             />
           </label>
-          <button class="primary-inline" type="submit">Update profile</button>
+          <button class="secondary-action" type="submit">Save settings</button>
         </form>
 
-        <div class="storage-tools">
-          <div>
-            <h3>Local data</h3>
-            <p>
-              Nap logs are stored only in this browser on this device. Export a
-              backup if you want to keep a copy or move it somewhere else.
-            </p>
-          </div>
-          <div class="storage-actions">
-            <button class="chip-button" id="exportButton" type="button">Export data</button>
-            <label class="chip-button file-button" for="importInput">Import data</label>
-            <input id="importInput" type="file" accept="application/json" hidden />
-            <button class="chip-button" id="resetAllButton" type="button">Reset all data</button>
-          </div>
-        </div>
+        <p class="details-note">
+          Predictions learn from recent naps, but these settings give the app a
+          starting point.
+        </p>
+      </details>
 
-        <div class="method-note">
-          <h3>How predictions work</h3>
-          <p>
-            This app blends age-based sleep priors with your baby’s recent wake
-            windows and nap lengths. Recent history is weighted with an
-            exponentially weighted moving average, a robust median steadies the
-            model, circadian sleepy windows nudge likely nap timing, and the
-            daytime sleep budget tapers late predictions when enough day sleep
-            has already happened.
-          </p>
+      <details class="panel details-panel">
+        <summary>Backup and local data</summary>
+
+        <p class="details-note">
+          Nap logs stay in this browser on this device unless you export them.
+        </p>
+
+        <div class="storage-actions">
+          <button class="secondary-action" id="exportButton" type="button">Export data</button>
+          <label class="secondary-action file-button" for="importInput">Import data</label>
+          <input id="importInput" type="file" accept="application/json" hidden />
+          <button class="secondary-action danger-action" id="resetAllButton" type="button">
+            Reset all data
+          </button>
         </div>
-      </section>
+      </details>
     </main>
-
-    <template id="predictionCardTemplate">
-      <article class="prediction-card">
-        <div class="prediction-time"></div>
-        <div class="prediction-copy">
-          <strong class="prediction-title"></strong>
-          <p class="prediction-note"></p>
-        </div>
-      </article>
-    </template>
-
-    <template id="timelineItemTemplate">
-      <article class="timeline-item">
-        <div class="timeline-dot"></div>
-        <div class="timeline-copy">
-          <div class="timeline-row">
-            <strong class="timeline-title"></strong>
-            <span class="timeline-time"></span>
-          </div>
-          <p class="timeline-note"></p>
-        </div>
-      </article>
-    </template>
 
     <script src="./app.js"></script>
   </body>
