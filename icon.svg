@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <rect width="256" height="256" rx="64" fill="#f4eee7"/>
+  <circle cx="128" cy="128" r="82" fill="none" stroke="#eadfd5" stroke-width="24"/>
+  <path
+    d="M 128 46 A 82 82 0 0 1 200 155"
+    fill="none"
+    stroke="#d57e52"
+    stroke-width="24"
+    stroke-linecap="round"
+  />
+  <path
+    d="M 200 155 A 82 82 0 0 1 86 198"
+    fill="none"
+    stroke="#8dc6bd"
+    stroke-width="24"
+    stroke-linecap="round"
+    stroke-dasharray="4 10"
+  />
+  <circle cx="128" cy="128" r="46" fill="#fffaf5"/>
+  <text
+    x="128"
+    y="136"
+    text-anchor="middle"
+    font-family="Avenir Next, Segoe UI, sans-serif"
+    font-size="38"
+    fill="#302821"
+  >Zz</text>
+</svg>
