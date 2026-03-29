@@ -59,9 +59,6 @@ const els = {
   ageMonthsInput: document.querySelector("#ageMonthsInput"),
   wakeTimeInput: document.querySelector("#wakeTimeInput"),
   bedTimeInput: document.querySelector("#bedTimeInput"),
-  baselineWakeInput: document.querySelector("#baselineWakeInput"),
-  baselineNapInput: document.querySelector("#baselineNapInput"),
-  baselineFeedInput: document.querySelector("#baselineFeedInput"),
   installButton: document.querySelector("#installButton"),
   exportButton: document.querySelector("#exportButton"),
   importInput: document.querySelector("#importInput"),
@@ -255,9 +252,6 @@ function buildSeedState() {
       ageMonthsFallback: 6,
       wakeTime: "07:00",
       bedTime: "19:30",
-      baselineWake: 135,
-      baselineNap: 80,
-      baselineFeedInterval: 180,
     },
     naps: [],
     nights: [],
@@ -358,13 +352,6 @@ function normalizeState(candidate) {
     ),
     wakeTime: candidate.profile?.wakeTime || base.profile.wakeTime,
     bedTime: candidate.profile?.bedTime || base.profile.bedTime,
-    baselineWake: clamp(Number(candidate.profile?.baselineWake) || base.profile.baselineWake, 30, 420),
-    baselineNap: clamp(Number(candidate.profile?.baselineNap) || base.profile.baselineNap, 20, 240),
-    baselineFeedInterval: clamp(
-      Number(candidate.profile?.baselineFeedInterval) || base.profile.baselineFeedInterval,
-      60,
-      360,
-    ),
   };
 
   return {
@@ -556,17 +543,13 @@ function getSleepPredictionModel() {
 
   const blendedWakeBase =
     wakeSeries.length >= 2
-      ? 0.45 * (wakeMedian || prior.wakeMinutes) +
-        0.35 * (wakeEwma || prior.wakeMinutes) +
-        0.2 * state.profile.baselineWake
-      : 0.6 * prior.wakeMinutes + 0.4 * state.profile.baselineWake;
+      ? 0.58 * (wakeMedian || prior.wakeMinutes) + 0.42 * (wakeEwma || prior.wakeMinutes)
+      : prior.wakeMinutes;
 
   const blendedNapBase =
     napSeries.length >= 2
-      ? 0.45 * (napMedian || prior.napMinutes) +
-        0.35 * (napEwma || prior.napMinutes) +
-        0.2 * state.profile.baselineNap
-      : 0.6 * prior.napMinutes + 0.4 * state.profile.baselineNap;
+      ? 0.58 * (napMedian || prior.napMinutes) + 0.42 * (napEwma || prior.napMinutes)
+      : prior.napMinutes;
 
   const wakeDeviation =
     wakeSeries.length >= 2 ? stddev(wakeSeries) : (prior.wakeRange[1] - prior.wakeRange[0]) / 4;
@@ -589,10 +572,8 @@ function getFeedPredictionModel() {
 
   const intervalBase =
     intervals.length >= 2
-      ? 0.5 * (intervalMedian || prior.intervalMinutes) +
-        0.3 * (intervalEwma || prior.intervalMinutes) +
-        0.2 * state.profile.baselineFeedInterval
-      : 0.7 * prior.intervalMinutes + 0.3 * state.profile.baselineFeedInterval;
+      ? 0.62 * (intervalMedian || prior.intervalMinutes) + 0.38 * (intervalEwma || prior.intervalMinutes)
+      : prior.intervalMinutes;
 
   return {
     ageInfo,
@@ -1095,9 +1076,6 @@ function syncForm() {
   els.ageMonthsInput.value = profile.ageMonthsFallback;
   els.wakeTimeInput.value = profile.wakeTime;
   els.bedTimeInput.value = profile.bedTime;
-  els.baselineWakeInput.value = profile.baselineWake;
-  els.baselineNapInput.value = profile.baselineNap;
-  els.baselineFeedInput.value = profile.baselineFeedInterval;
 }
 
 function syncDateInputs() {
@@ -1420,9 +1398,6 @@ els.settingsForm.addEventListener("submit", (event) => {
     ageMonthsFallback: clamp(Number(els.ageMonthsInput.value) || 0, 0, 36),
     wakeTime: els.wakeTimeInput.value || "07:00",
     bedTime: els.bedTimeInput.value || "19:30",
-    baselineWake: clamp(Number(els.baselineWakeInput.value) || 60, 30, 420),
-    baselineNap: clamp(Number(els.baselineNapInput.value) || 60, 20, 240),
-    baselineFeedInterval: clamp(Number(els.baselineFeedInput.value) || 180, 60, 360),
   };
   syncForm();
   render();

@@ -202,42 +202,14 @@
             Bedtime
             <input id="bedTimeInput" name="bedTime" type="time" />
           </label>
-          <label>
-            Typical wake window (minutes)
-            <input
-              id="baselineWakeInput"
-              name="baselineWake"
-              type="number"
-              min="30"
-              max="420"
-            />
-          </label>
-          <label>
-            Typical nap length (minutes)
-            <input
-              id="baselineNapInput"
-              name="baselineNap"
-              type="number"
-              min="20"
-              max="240"
-            />
-          </label>
-          <label>
-            Typical feed interval (minutes)
-            <input
-              id="baselineFeedInput"
-              name="baselineFeed"
-              type="number"
-              min="60"
-              max="360"
-            />
-          </label>
           <button class="secondary-action" type="submit">Save settings</button>
         </form>
 
         <p class="details-note">
           Date of birth improves age-based sleep priors. Due date only matters
-          if you want corrected age used for early babies.
+          if you want corrected age used for early babies. Wake windows, nap
+          length, and feed spacing are estimated automatically from age and
+          recent logs.
         </p>
       </details>
 
