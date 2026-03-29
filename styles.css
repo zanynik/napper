@@ -70,6 +70,10 @@ button {
   gap: 12px;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 .top-bar,
 .panel-heading,
 .history-heading,
