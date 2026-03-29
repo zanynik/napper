@@ -59,22 +59,24 @@ const els = {
   sleepDayEyebrow: document.querySelector("#sleepDayEyebrow"),
   sleepDayTitle: document.querySelector("#sleepDayTitle"),
   sleepDaySummary: document.querySelector("#sleepDaySummary"),
-  planScale: document.querySelector("#planScale"),
   planTrack: document.querySelector("#planTrack"),
-  sleepLogsToggleButton: document.querySelector("#sleepLogsToggleButton"),
-  sleepLogsBody: document.querySelector("#sleepLogsBody"),
-  sleepLogsChevron: document.querySelector("#sleepLogsChevron"),
+  sleepRingStartLabel: document.querySelector("#sleepRingStartLabel"),
+  sleepRingEndLabel: document.querySelector("#sleepRingEndLabel"),
   sleepDayList: document.querySelector("#sleepDayList"),
   addSleepEntryButton: document.querySelector("#addSleepEntryButton"),
+  sleepDetailsOverlay: document.querySelector("#sleepDetailsOverlay"),
+  sleepDetailsTitle: document.querySelector("#sleepDetailsTitle"),
+  sleepDetailsCloseButton: document.querySelector("#sleepDetailsCloseButton"),
   feedDateStrip: document.querySelector("#feedDateStrip"),
+  openFeedDetailsButton: document.querySelector("#openFeedDetailsButton"),
   historyEyebrow: document.querySelector("#historyEyebrow"),
   historyTitle: document.querySelector("#historyTitle"),
   historySummary: document.querySelector("#historySummary"),
-  feedLogsToggleButton: document.querySelector("#feedLogsToggleButton"),
-  feedLogsBody: document.querySelector("#feedLogsBody"),
-  feedLogsChevron: document.querySelector("#feedLogsChevron"),
   historyList: document.querySelector("#historyList"),
   addFeedEntryButton: document.querySelector("#addFeedEntryButton"),
+  feedDetailsOverlay: document.querySelector("#feedDetailsOverlay"),
+  feedDetailsTitle: document.querySelector("#feedDetailsTitle"),
+  feedDetailsCloseButton: document.querySelector("#feedDetailsCloseButton"),
   manualNapForm: document.querySelector("#manualNapForm"),
   manualSleepStartLabel: document.querySelector("#manualSleepStartLabel"),
   manualSleepEndLabel: document.querySelector("#manualSleepEndLabel"),
@@ -435,8 +437,8 @@ const ui = {
   activeTab: "sleep",
   sleepMode: "sun",
   openComposer: null,
-  sleepLogsExpanded: false,
-  feedLogsExpanded: false,
+  sleepDetailsOpen: false,
+  feedDetailsOpen: false,
 };
 
 function saveState() {
@@ -451,8 +453,8 @@ function replaceState(nextState) {
   state.feeds = normalized.feeds;
   ui.historyDate = formatDateInput(now());
   ui.openComposer = null;
-  ui.sleepLogsExpanded = false;
-  ui.feedLogsExpanded = false;
+  ui.sleepDetailsOpen = false;
+  ui.feedDetailsOpen = false;
   syncForm();
   syncDateInputs();
   render();
@@ -1259,21 +1261,50 @@ function buildSleepSectionEntries(bounds, includePredictions, sleepPlan) {
           .filter((night) =>
             overlapsRange(night.startDate, night.endDate || now(), bounds.rangeStart, bounds.rangeEnd),
           )
-          .map((night) => {
+          .flatMap((night) => {
             const breakCount = (night.breaks || []).length;
-            return {
-              id: night.id,
-              type: "night",
-              variant: "moon",
-              sortDate: night.startDate,
-              timeLabel: `${formatClock(night.startDate)} - ${night.endDate ? formatClock(night.endDate) : "in progress"}`,
-              title: "Night sleep",
-              note: `${formatDuration(getNightDurationMinutes(night))} asleep${
-                breakCount ? ` with ${breakCount} wake break${breakCount === 1 ? "" : "s"}` : ""
-              }.`,
-              durationMinutes: getNightDurationMinutes(night),
-              isPredicted: false,
-            };
+            const entries = [
+              {
+                id: night.id,
+                type: "night",
+                variant: "moon",
+                sortDate: night.startDate,
+                timeLabel: `${formatClock(night.startDate)} - ${night.endDate ? formatClock(night.endDate) : "in progress"}`,
+                title: "Night sleep",
+                note: `${formatDuration(getNightDurationMinutes(night))} asleep${
+                  breakCount ? ` with ${breakCount} wake break${breakCount === 1 ? "" : "s"}` : ""
+                }.`,
+                durationMinutes: getNightDurationMinutes(night),
+                isPredicted: false,
+              },
+            ];
+
+            (night.breaks || [])
+              .filter((nightBreak) =>
+                overlapsRange(nightBreak.startDate, nightBreak.endDate || now(), bounds.rangeStart, bounds.rangeEnd),
+              )
+              .forEach((nightBreak) => {
+                entries.push({
+                  id: nightBreak.id,
+                  type: "break",
+                  parentId: night.id,
+                  variant: "moon",
+                  sortDate: nightBreak.startDate,
+                  timeLabel: `${formatClock(nightBreak.startDate)} - ${
+                    nightBreak.endDate ? formatClock(nightBreak.endDate) : "in progress"
+                  }`,
+                  title: "Wake break",
+                  note: nightBreak.endDate
+                    ? `${formatDuration((nightBreak.endDate - nightBreak.startDate) / 60000)} awake.`
+                    : "Wake break is still running.",
+                  durationMinutes: nightBreak.endDate
+                    ? (nightBreak.endDate - nightBreak.startDate) / 60000
+                    : Math.max(0, (now() - nightBreak.startDate) / 60000),
+                  isPredicted: false,
+                });
+              });
+
+            return entries;
           });
 
   const predictedEntries = includePredictions && sleepPlan
@@ -1382,11 +1413,40 @@ function getPlanSegments(bounds, sleepPlan, includePredictions) {
           start: nap.startDate,
           end: nap.endDate || now(),
         }))
-      : getParsedNights().map((night) => ({
-          kind: night.endDate ? "moon-logged" : "moon-active",
-          start: night.startDate,
-          end: night.endDate || bounds.rangeEnd,
-        }));
+      : getParsedNights().flatMap((night) => {
+          const segments = [];
+          const nightEnd = night.endDate || bounds.rangeEnd;
+          let cursor = night.startDate;
+
+          (night.breaks || []).forEach((nightBreak) => {
+            const breakEnd = nightBreak.endDate || now();
+            if (nightBreak.startDate > cursor) {
+              segments.push({
+                kind: night.endDate ? "moon-logged" : "moon-active",
+                start: cursor,
+                end: nightBreak.startDate,
+              });
+            }
+
+            segments.push({
+              kind: "moon-break",
+              start: nightBreak.startDate,
+              end: breakEnd,
+            });
+
+            cursor = breakEnd;
+          });
+
+          if (nightEnd > cursor) {
+            segments.push({
+              kind: night.endDate ? "moon-logged" : "moon-active",
+              start: cursor,
+              end: nightEnd,
+            });
+          }
+
+          return segments;
+        });
 
   const futureSegments =
     includePredictions && sleepPlan
@@ -1403,60 +1463,64 @@ function getPlanSegments(bounds, sleepPlan, includePredictions) {
     .filter((segment) => segment.end > rangeStart && segment.start < rangeEnd)
     .map((segment) => ({
       ...segment,
-      left: clamp(((segment.start - rangeStart) / (rangeEnd - rangeStart)) * 100, 0, 100),
-      width: clamp(((segment.end - segment.start) / (rangeEnd - rangeStart)) * 100, 0.8, 100),
+      progressStart: clamp((segment.start - rangeStart) / (rangeEnd - rangeStart), 0, 1),
+      progressEnd: clamp((segment.end - rangeStart) / (rangeEnd - rangeStart), 0, 1),
     }));
-}
-
-function renderPlanScale(bounds) {
-  const markers =
-    ui.sleepMode === "sun"
-      ? [
-          { label: `Wake ${formatClock(bounds.dayStart)}` },
-          { label: "Morning" },
-          { label: "Midday" },
-          { label: "Afternoon" },
-          { label: `Bed ${formatClock(bounds.dayEnd)}` },
-        ]
-      : [
-          { label: `Bed ${formatClock(bounds.dayEnd)}` },
-          { label: "Evening" },
-          { label: "Midnight" },
-          { label: "Early" },
-          { label: `Wake ${formatClock(bounds.tomorrowWake)}` },
-        ];
-
-  els.planScale.className = `plan-scale plan-scale-${ui.sleepMode}`;
-  els.planScale.innerHTML = markers.map((marker) => `<div class="scale-label">${marker.label}</div>`).join("");
 }
 
 function renderPlanTrack(bounds, includePredictions, sleepPlan) {
   const segments = getPlanSegments(bounds, sleepPlan, includePredictions);
   const rangeStart = bounds.rangeStart;
   const rangeEnd = bounds.rangeEnd;
-  const meta = getSleepSectionMeta(ui.historyDate, ui.historyDate === formatDateInput(now()));
+  const radius = 132;
+  const center = 160;
+  const startAngle = -135;
+  const totalAngle = 270;
+  const backgroundEndAngle = startAngle + totalAngle;
 
-  els.planTrack.className = `plan-track plan-track-${ui.sleepMode}`;
-
-  if (!segments.length) {
-    els.planTrack.innerHTML = `<div class="plan-track-empty">${meta.emptyState}</div>`;
-    return;
-  }
+  const angleFor = (progress) => startAngle + progress * totalAngle;
+  const polarToCartesian = (angle, radiusValue) => {
+    const radians = ((angle - 90) * Math.PI) / 180;
+    return {
+      x: center + radiusValue * Math.cos(radians),
+      y: center + radiusValue * Math.sin(radians),
+    };
+  };
+  const describeArc = (arcStart, arcEnd, radiusValue) => {
+    const start = polarToCartesian(arcStart, radiusValue);
+    const end = polarToCartesian(arcEnd, radiusValue);
+    const largeArcFlag = arcEnd - arcStart > 180 ? 1 : 0;
+    return `M ${start.x} ${start.y} A ${radiusValue} ${radiusValue} 0 ${largeArcFlag} 1 ${end.x} ${end.y}`;
+  };
 
   const segmentMarkup = segments
-    .map(
-      (segment) =>
-        `<div class="plan-segment plan-segment-${segment.kind}" style="left:${segment.left}%;width:${segment.width}%"></div>`,
-    )
+    .filter((segment) => segment.progressEnd > segment.progressStart)
+    .map((segment) => {
+      const segmentStart = angleFor(segment.progressStart);
+      const segmentEnd = angleFor(segment.progressEnd);
+      return `<path class="plan-ring-segment plan-ring-segment-${segment.kind}" d="${describeArc(
+        segmentStart,
+        segmentEnd,
+        radius,
+      )}" />`;
+    })
     .join("");
 
-  if (!includePredictions || ui.historyDate !== formatDateInput(now())) {
-    els.planTrack.innerHTML = segmentMarkup;
-    return;
-  }
+  const showNowMarker = includePredictions && ui.historyDate === formatDateInput(now());
+  const nowProgress = clamp((now() - rangeStart) / (rangeEnd - rangeStart), 0, 1);
+  const nowPoint = polarToCartesian(angleFor(nowProgress), radius);
+  const nowMarkup = showNowMarker
+    ? `<circle class="plan-ring-now-dot" cx="${nowPoint.x}" cy="${nowPoint.y}" r="7"></circle>`
+    : "";
 
-  const nowPosition = clamp(((now() - rangeStart) / (rangeEnd - rangeStart)) * 100, 0, 100);
-  els.planTrack.innerHTML = `${segmentMarkup}<div class="plan-now-marker" style="left:${nowPosition}%"></div>`;
+  els.planTrack.className = `plan-track plan-track-${ui.sleepMode}`;
+  els.planTrack.innerHTML = `
+    <svg class="plan-ring-svg" viewBox="0 0 320 320" role="presentation" focusable="false">
+      <path class="plan-ring-base plan-ring-base-${ui.sleepMode}" d="${describeArc(startAngle, backgroundEndAngle, radius)}" />
+      ${segmentMarkup}
+      ${nowMarkup}
+    </svg>
+  `;
 }
 
 function buildHistoryEntries(dateValue) {
@@ -1527,16 +1591,6 @@ function renderTabs() {
   });
 }
 
-function renderLogPanels() {
-  els.sleepLogsToggleButton.setAttribute("aria-expanded", String(ui.sleepLogsExpanded));
-  els.sleepLogsBody.hidden = !ui.sleepLogsExpanded;
-  els.sleepLogsChevron.textContent = ui.sleepLogsExpanded ? "Close" : "Open";
-
-  els.feedLogsToggleButton.setAttribute("aria-expanded", String(ui.feedLogsExpanded));
-  els.feedLogsBody.hidden = !ui.feedLogsExpanded;
-  els.feedLogsChevron.textContent = ui.feedLogsExpanded ? "Close" : "Open";
-}
-
 function getDateRailDates() {
   const today = startOfDay(now());
   return [-2, -1, 0, 1].map((offset) => addDays(today, offset));
@@ -1584,6 +1638,34 @@ function renderNapStartAdjuster() {
 
   const activeStart = new Date(activeNap.start);
   els.napStartTimeButton.textContent = formatClock(activeStart);
+}
+
+function renderSleepDetailsOverlay() {
+  els.sleepDetailsOverlay.hidden = !ui.sleepDetailsOpen;
+  document.body.classList.toggle("is-overlay-open", ui.sleepDetailsOpen || ui.feedDetailsOpen);
+  if (!ui.sleepDetailsOpen) {
+    return;
+  }
+
+  els.sleepDetailsTitle.textContent =
+    ui.sleepMode === "sun"
+      ? ui.historyDate === formatDateInput(now())
+        ? "Today sleep details"
+        : `Sleep details for ${formatDateLabel(ui.historyDate)}`
+      : ui.historyDate === formatDateInput(now())
+        ? "Tonight details"
+        : `Night details for ${formatDateLabel(ui.historyDate)}`;
+}
+
+function renderFeedDetailsOverlay() {
+  els.feedDetailsOverlay.hidden = !ui.feedDetailsOpen;
+  document.body.classList.toggle("is-overlay-open", ui.sleepDetailsOpen || ui.feedDetailsOpen);
+  if (!ui.feedDetailsOpen) {
+    return;
+  }
+
+  els.feedDetailsTitle.textContent =
+    ui.historyDate === formatDateInput(now()) ? "Today feed details" : `Feed details for ${formatDateLabel(ui.historyDate)}`;
 }
 
 function renderSleepModeTimer(sleepPlan = buildSleepPlan()) {
@@ -1689,19 +1771,37 @@ function populateManualFeedForm() {
   els.manualFeedTimeInput.value = getDefaultManualFeedValue(ui.historyDate);
 }
 
-function toggleComposer(type) {
-  ui.openComposer = ui.openComposer === type ? null : type;
-
-  if (ui.openComposer === "sleep") {
-    ui.sleepLogsExpanded = true;
+function openSleepDetails({ compose = false } = {}) {
+  ui.sleepDetailsOpen = true;
+  if (compose) {
+    ui.openComposer = "sleep";
     populateManualNapForm();
   }
+  render();
+}
 
-  if (ui.openComposer === "feed") {
-    ui.feedLogsExpanded = true;
+function closeSleepDetails() {
+  ui.sleepDetailsOpen = false;
+  if (ui.openComposer === "sleep") {
+    ui.openComposer = null;
+  }
+  render();
+}
+
+function openFeedDetails({ compose = false } = {}) {
+  ui.feedDetailsOpen = true;
+  if (compose) {
+    ui.openComposer = "feed";
     populateManualFeedForm();
   }
+  render();
+}
 
+function closeFeedDetails() {
+  ui.feedDetailsOpen = false;
+  if (ui.openComposer === "feed") {
+    ui.openComposer = null;
+  }
   render();
 }
 
@@ -1733,17 +1833,22 @@ function renderSleepDayView(sleepPlan) {
   const meta = getSleepSectionMeta(ui.historyDate, isCurrentDate);
   const sectionEntries = buildSleepSectionEntries(bounds, isCurrentDate || isFutureDate, referencePlan);
   const loggedEntries = sectionEntries.filter((entry) => !entry.isPredicted);
-  const totalMinutes = loggedEntries.reduce((sum, entry) => sum + (entry.durationMinutes || 0), 0);
+  const summaryEntries = loggedEntries.filter((entry) => entry.type !== "break");
+  const totalMinutes = summaryEntries.reduce((sum, entry) => sum + (entry.durationMinutes || 0), 0);
   const overview = getSleepSectionOverview(ui.historyDate, isCurrentDate, isFutureDate, referencePlan || sleepPlan, bounds);
-  const entryCount = loggedEntries.length;
+  const entryCount = summaryEntries.length;
+  const wakeBreakCount = loggedEntries.filter((entry) => entry.type === "break").length;
 
   els.sleepDayEyebrow.textContent = meta.panelEyebrow;
   els.sleepDayTitle.textContent = meta.panelTitle;
   els.nextSleepEyebrow.textContent = meta.nextEyebrow;
   els.nextSleepMain.textContent = overview.main;
   els.nextSleepNote.textContent = overview.note;
+  els.sleepRingStartLabel.textContent =
+    ui.sleepMode === "sun" ? `Wake ${formatClock(bounds.dayStart)}` : `Bed ${formatClock(bounds.dayEnd)}`;
+  els.sleepRingEndLabel.textContent =
+    ui.sleepMode === "sun" ? `Bed ${formatClock(bounds.dayEnd)}` : `Wake ${formatClock(bounds.tomorrowWake)}`;
 
-  renderPlanScale(bounds);
   renderPlanTrack(bounds, isCurrentDate || isFutureDate, referencePlan);
   els.manualNapForm.hidden = ui.openComposer !== "sleep";
 
@@ -1752,7 +1857,13 @@ function renderSleepDayView(sleepPlan) {
       ui.sleepMode === "sun"
         ? `${entryCount} nap${entryCount === 1 ? "" : "s"}`
         : `${entryCount} night${entryCount === 1 ? "" : "s"}`;
-    els.sleepDaySummary.textContent = `${formatDateLabel(ui.historyDate)} · ${entryLabel} · ${formatDuration(totalMinutes)} asleep`;
+    const breakLabel =
+      ui.sleepMode === "moon" && wakeBreakCount
+        ? ` · ${wakeBreakCount} wake break${wakeBreakCount === 1 ? "" : "s"}`
+        : "";
+    els.sleepDaySummary.textContent = `${formatDateLabel(ui.historyDate)} · ${entryLabel} · ${formatDuration(
+      totalMinutes,
+    )} asleep${breakLabel}`;
   } else if (isCurrentDate && ui.sleepMode === "moon") {
     els.sleepDaySummary.textContent = `Tonight · bedtime around ${formatClock(bounds.dayEnd)} · wake around ${formatClock(
       bounds.tomorrowWake,
@@ -1881,10 +1992,11 @@ function render() {
   renderTabs();
   renderSleepModeSwitch();
   renderSleepModeTimer(sleepPlan);
-  renderLogPanels();
   renderNapStartAdjuster();
   renderSleepDayView(sleepPlan);
+  renderSleepDetailsOverlay();
   renderFeedHistory();
+  renderFeedDetailsOverlay();
   saveState();
 }
 
@@ -2028,6 +2140,7 @@ function addManualNap(dateValue, startTime, endTime) {
   });
   ui.historyDate = dateValue;
   ui.openComposer = null;
+  ui.sleepDetailsOpen = true;
   render();
   return true;
 }
@@ -2053,6 +2166,7 @@ function addManualNight(dateValue, startTime, endTime) {
   });
   ui.historyDate = dateValue;
   ui.openComposer = null;
+  ui.sleepDetailsOpen = true;
   render();
   return true;
 }
@@ -2060,6 +2174,7 @@ function addManualNight(dateValue, startTime, endTime) {
 function addManualFeed(dateValue, timeValue, kind) {
   ui.historyDate = dateValue;
   ui.openComposer = null;
+  ui.feedDetailsOpen = true;
   addFeed(kind, combineDateAndTime(dateValue, timeValue), false);
   render();
 }
@@ -2073,6 +2188,12 @@ function deleteEntry(type, id) {
   }
   if (type === "feed") {
     state.feeds = state.feeds.filter((feed) => feed.id !== id);
+  }
+  if (type === "break") {
+    state.nights = state.nights.map((night) => ({
+      ...night,
+      breaks: (night.breaks || []).filter((nightBreak) => nightBreak.id !== id),
+    }));
   }
   render();
 }
@@ -2145,18 +2266,22 @@ els.feedBottleButton.addEventListener("click", () => addFeed("bottle"));
 els.sleepTabButton.addEventListener("click", () => {
   ui.activeTab = "sleep";
   ui.openComposer = null;
+  ui.feedDetailsOpen = false;
   render();
 });
 
 els.feedTabButton.addEventListener("click", () => {
   ui.activeTab = "feed";
   ui.openComposer = null;
+  ui.sleepDetailsOpen = false;
   render();
 });
 
 els.settingsTabButton.addEventListener("click", () => {
   ui.activeTab = "settings";
   ui.openComposer = null;
+  ui.sleepDetailsOpen = false;
+  ui.feedDetailsOpen = false;
   render();
 });
 
@@ -2166,27 +2291,57 @@ els.sleepModeSwitchButton.addEventListener("click", () => {
   render();
 });
 
-els.sleepLogsToggleButton.addEventListener("click", () => {
-  ui.sleepLogsExpanded = !ui.sleepLogsExpanded;
-  if (!ui.sleepLogsExpanded && ui.openComposer === "sleep") {
-    ui.openComposer = null;
-  }
-  render();
+els.planTrack.addEventListener("click", () => {
+  openSleepDetails();
 });
 
-els.feedLogsToggleButton.addEventListener("click", () => {
-  ui.feedLogsExpanded = !ui.feedLogsExpanded;
-  if (!ui.feedLogsExpanded && ui.openComposer === "feed") {
-    ui.openComposer = null;
+els.planTrack.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    openSleepDetails();
   }
-  render();
+});
+
+els.sleepDetailsCloseButton.addEventListener("click", () => {
+  closeSleepDetails();
+});
+
+els.sleepDetailsOverlay.addEventListener("click", (event) => {
+  if (event.target === els.sleepDetailsOverlay) {
+    closeSleepDetails();
+  }
+});
+
+els.openFeedDetailsButton.addEventListener("click", () => {
+  openFeedDetails();
+});
+
+els.openFeedDetailsButton.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    openFeedDetails();
+  }
+});
+
+els.feedDetailsCloseButton.addEventListener("click", () => {
+  closeFeedDetails();
+});
+
+els.feedDetailsOverlay.addEventListener("click", (event) => {
+  if (event.target === els.feedDetailsOverlay) {
+    closeFeedDetails();
+  }
 });
 
 els.addSleepEntryButton.addEventListener("click", () => {
-  toggleComposer("sleep");
-  if (ui.openComposer !== "sleep") {
+  if (ui.openComposer === "sleep") {
+    ui.openComposer = null;
+    ui.sleepDetailsOpen = true;
+    render();
     return;
   }
+
+  openSleepDetails({ compose: true });
 
   if (typeof els.manualNapStartInput.showPicker === "function") {
     els.manualNapStartInput.showPicker();
@@ -2196,10 +2351,14 @@ els.addSleepEntryButton.addEventListener("click", () => {
 });
 
 els.addFeedEntryButton.addEventListener("click", () => {
-  toggleComposer("feed");
-  if (ui.openComposer !== "feed") {
+  if (ui.openComposer === "feed") {
+    ui.openComposer = null;
+    ui.feedDetailsOpen = true;
+    render();
     return;
   }
+
+  openFeedDetails({ compose: true });
 
   if (typeof els.manualFeedTimeInput.showPicker === "function") {
     els.manualFeedTimeInput.showPicker();
@@ -2268,6 +2427,17 @@ els.sleepDayList.addEventListener("click", (event) => {
 
   if (window.confirm("Delete this entry?")) {
     deleteEntry(button.dataset.deleteType, button.dataset.deleteId);
+  }
+});
+
+window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && ui.sleepDetailsOpen) {
+    closeSleepDetails();
+    return;
+  }
+
+  if (event.key === "Escape" && ui.feedDetailsOpen) {
+    closeFeedDetails();
   }
 });
 
