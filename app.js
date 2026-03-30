@@ -19,6 +19,43 @@ const feedPriors = [
   { maxMonths: 36, intervalMinutes: 240, range: [150, 360] },
 ];
 
+const nightWakePriors = [
+  {
+    maxMonths: 2,
+    wakes: [
+      { offsetMinutes: 180, durationMinutes: 20 },
+      { offsetMinutes: 330, durationMinutes: 20 },
+      { offsetMinutes: 510, durationMinutes: 25 },
+    ],
+  },
+  {
+    maxMonths: 4,
+    wakes: [
+      { offsetMinutes: 240, durationMinutes: 18 },
+      { offsetMinutes: 420, durationMinutes: 18 },
+    ],
+  },
+  {
+    maxMonths: 6,
+    wakes: [
+      { offsetMinutes: 270, durationMinutes: 16 },
+      { offsetMinutes: 465, durationMinutes: 16 },
+    ],
+  },
+  {
+    maxMonths: 12,
+    wakes: [{ offsetMinutes: 330, durationMinutes: 14 }],
+  },
+  {
+    maxMonths: 18,
+    wakes: [{ offsetMinutes: 390, durationMinutes: 12 }],
+  },
+  {
+    maxMonths: 36,
+    wakes: [],
+  },
+];
+
 const els = {
   sleepTabButton: document.querySelector("#sleepTabButton"),
   feedTabButton: document.querySelector("#feedTabButton"),
@@ -60,6 +97,8 @@ const els = {
   planTrack: document.querySelector("#planTrack"),
   sleepRingStartLabel: document.querySelector("#sleepRingStartLabel"),
   sleepRingEndLabel: document.querySelector("#sleepRingEndLabel"),
+  sleepHeroSecondaryActions: document.querySelector("#sleepHeroSecondaryActions"),
+  sleepHeroSecondaryButton: document.querySelector("#sleepHeroSecondaryButton"),
   sleepDayList: document.querySelector("#sleepDayList"),
   addSleepEntryButton: document.querySelector("#addSleepEntryButton"),
   sleepDetailsOverlay: document.querySelector("#sleepDetailsOverlay"),
@@ -76,6 +115,9 @@ const els = {
   feedDetailsTitle: document.querySelector("#feedDetailsTitle"),
   feedDetailsCloseButton: document.querySelector("#feedDetailsCloseButton"),
   manualNapForm: document.querySelector("#manualNapForm"),
+  manualSleepTypeToggle: document.querySelector("#manualSleepTypeToggle"),
+  manualSleepNightButton: document.querySelector("#manualSleepNightButton"),
+  manualSleepBreakButton: document.querySelector("#manualSleepBreakButton"),
   manualSleepStartLabel: document.querySelector("#manualSleepStartLabel"),
   manualSleepEndLabel: document.querySelector("#manualSleepEndLabel"),
   manualSleepSaveButton: document.querySelector("#manualSleepSaveButton"),
@@ -432,6 +474,7 @@ const ui = {
   activeTab: "sleep",
   sleepMode: "sun",
   openComposer: null,
+  sleepComposerType: "sleep",
   sleepDetailsOpen: false,
   feedDetailsOpen: false,
 };
@@ -570,6 +613,29 @@ function getActiveNapTimerData(model = getSleepPredictionModel()) {
   };
 }
 
+function getActiveNightBreakTimerData(referenceDate = now()) {
+  const activeNight = getActiveNightEvent();
+  const activeBreak = getActiveNightBreak(activeNight);
+  if (!activeBreak?.startDate || !activeNight) {
+    return null;
+  }
+
+  const breakIndex = Math.max(0, (activeNight.breaks || []).findIndex((nightBreak) => nightBreak.id === activeBreak.id));
+  const pattern = getNightBreakPatterns(referenceDate)[breakIndex] || null;
+  const expectedDurationMinutes = pattern?.durationMinutes || 20;
+  const predictedEnd = new Date(activeBreak.startDate.getTime() + expectedDurationMinutes * 60000);
+  const elapsedMs = Math.max(0, now() - activeBreak.startDate);
+  const remainingMs = predictedEnd - now();
+
+  return {
+    startDate: activeBreak.startDate,
+    predictedEnd,
+    elapsedMs,
+    remainingMs,
+    isOverdue: remainingMs < 0,
+  };
+}
+
 function isSameDay(left, right) {
   return (
     left.getFullYear() === right.getFullYear() &&
@@ -668,6 +734,127 @@ function recentFeedIntervals() {
   });
 
   return values.slice(-12);
+}
+
+function getRecentCompletedNights(limit = 8, referenceDate = now()) {
+  return getParsedNights()
+    .filter((night) => night.endDate && night.endDate <= referenceDate)
+    .sort((a, b) => a.endDate - b.endDate)
+    .slice(-limit);
+}
+
+function getNightWakePrior(ageMonths) {
+  return nightWakePriors.find((prior) => ageMonths <= prior.maxMonths) || nightWakePriors[nightWakePriors.length - 1];
+}
+
+function getNightBreakPatterns(referenceDate = now()) {
+  const nights = getRecentCompletedNights(10, referenceDate);
+  const ageInfo = getProfileAgeInfo(referenceDate);
+  const prior = getNightWakePrior(ageInfo.ageMonths);
+  const priorWakes = prior.wakes || [];
+
+  if (!nights.length) {
+    return priorWakes.map((wake, index) => ({
+      index,
+      sampleCount: 0,
+      source: "age",
+      offsetMinutes: wake.offsetMinutes,
+      durationMinutes: wake.durationMinutes,
+    }));
+  }
+
+  const averageBreakCount = average(nights.map((night) => (night.breaks || []).length)) || 0;
+  const blendedBreakCount = nights.length < 3
+    ? 0.65 * priorWakes.length + 0.35 * averageBreakCount
+    : 0.25 * priorWakes.length + 0.75 * averageBreakCount;
+  const targetBreaks = clamp(Math.round(blendedBreakCount), 0, 3);
+  const patterns = [];
+
+  for (let index = 0; index < targetBreaks; index += 1) {
+    const offsetSeries = [];
+    const durationSeries = [];
+    const priorWake = priorWakes[index] || null;
+
+    nights.forEach((night) => {
+      const nightBreak = (night.breaks || [])[index];
+      if (!nightBreak?.startDate || !nightBreak?.endDate) {
+        return;
+      }
+
+      const offsetMinutes = (nightBreak.startDate - night.startDate) / 60000;
+      const durationMinutes = (nightBreak.endDate - nightBreak.startDate) / 60000;
+      if (offsetMinutes < 20 || offsetMinutes > 720 || durationMinutes < 2 || durationMinutes > 120) {
+        return;
+      }
+
+      offsetSeries.push(offsetMinutes);
+      durationSeries.push(durationMinutes);
+    });
+
+    if (!offsetSeries.length && !priorWake) {
+      continue;
+    }
+
+    const sampleCount = offsetSeries.length;
+    const historyWeight = clamp(sampleCount / 4, 0, 1);
+    const defaultOffset = priorWake?.offsetMinutes ?? offsetSeries[0];
+    const defaultDuration = priorWake?.durationMinutes ?? durationSeries[0];
+    const medianOffset = median(offsetSeries) || defaultOffset;
+    const medianDuration = median(durationSeries) || defaultDuration;
+
+    patterns.push({
+      index,
+      sampleCount,
+      source: sampleCount ? (historyWeight >= 0.7 ? "history" : "blended") : "age",
+      offsetMinutes: clamp(
+        sampleCount ? medianOffset * historyWeight + defaultOffset * (1 - historyWeight) : defaultOffset,
+        20,
+        720,
+      ),
+      durationMinutes: clamp(
+        sampleCount ? medianDuration * historyWeight + defaultDuration * (1 - historyWeight) : defaultDuration,
+        5,
+        90,
+      ),
+    });
+  }
+
+  return patterns;
+}
+
+function buildNightBreakPredictions(nightStart, nightEnd, referenceDate = now(), completedBreakCount = 0) {
+  const patterns = getNightBreakPatterns(referenceDate).slice(completedBreakCount);
+  if (!patterns.length) {
+    return [];
+  }
+
+  let cursor = nightStart;
+
+  return patterns
+    .map((pattern, visibleIndex) => {
+      const rawStart = new Date(nightStart.getTime() + pattern.offsetMinutes * 60000);
+      const start = new Date(Math.max(rawStart.getTime(), cursor.getTime()));
+      const end = new Date(Math.min(start.getTime() + pattern.durationMinutes * 60000, nightEnd.getTime()));
+      if (end <= start || start >= nightEnd) {
+        return null;
+      }
+
+      cursor = end;
+      return {
+        kind: "night-break-predicted",
+        start,
+        end,
+        title: `Likely wake ${completedBreakCount + visibleIndex + 1}`,
+        note:
+          pattern.source === "history"
+            ? `${formatDuration((end - start) / 60000)} awake based on recent nights.`
+            : pattern.source === "blended"
+              ? `${formatDuration((end - start) / 60000)} awake blending age expectations with recent nights.`
+              : `${formatDuration((end - start) / 60000)} awake based on age-typical night waking.`,
+      };
+    })
+    .filter(Boolean)
+    .filter((block) => block.end > referenceDate || !isSameDay(nightStart, referenceDate));
 }
 
 function getNightFragmentationStats(night) {
@@ -992,6 +1179,12 @@ function buildSleepPlan() {
       title: "Night sleep",
       note: `Night started at ${formatClock(activeNight.startDate)}.`,
     });
+
+    if (!getActiveNightBreak(activeNight)) {
+      buildNightBreakPredictions(activeNight.startDate, tomorrowWake, now(), (activeNight.breaks || []).length).forEach((prediction) => {
+        blocks.push(prediction);
+      });
+    }
   } else if (tomorrowWake > now()) {
     blocks.push({
       kind: "night",
@@ -999,6 +1192,10 @@ function buildSleepPlan() {
       end: tomorrowWake,
       title: "Night sleep",
       note: `Bedtime around ${formatClock(dayEnd)} and next wake around ${formatClock(tomorrowWake)} tomorrow.`,
+    });
+
+    buildNightBreakPredictions(dayEnd, tomorrowWake, now()).forEach((prediction) => {
+      blocks.push(prediction);
     });
   }
 
@@ -1059,6 +1256,10 @@ function buildForecastSleepPlanForDate(dateValue) {
     note: `Bedtime around ${formatClock(dayEnd)} and next wake around ${formatClock(tomorrowWake)} the next morning.`,
   });
 
+  buildNightBreakPredictions(dayEnd, tomorrowWake, referenceDay).forEach((prediction) => {
+    blocks.push(prediction);
+  });
+
   return {
     model,
     blocks,
@@ -1071,9 +1272,12 @@ function buildForecastSleepPlanForDate(dateValue) {
 function getNextSleepSummary(plan) {
   const currentNight = plan.blocks.find((block) => block.kind === "night-active");
   if (currentNight && currentNight.start <= now()) {
+    const nextWake = plan.blocks.find((block) => block.kind === "night-break-predicted" && block.start > now());
     return {
       main: `${state.profile.babyName} is in night sleep`,
-      note: `Night started at ${formatClock(currentNight.start)}.`,
+      note: nextWake
+        ? `Likely next wake around ${formatClock(nextWake.start)}.`
+        : `Night started at ${formatClock(currentNight.start)}.`,
     };
   }
 
@@ -1140,7 +1344,7 @@ function getQuickNapCopy(plan) {
   };
 }
 
-function getQuickNightCopy() {
+function getQuickNightCopy(plan) {
   const activeNight = getActiveNightEvent();
   if (!activeNight) {
     return {
@@ -1163,7 +1367,12 @@ function getQuickNightCopy() {
 
   return {
     headline: `Night started at ${formatClock(activeNight.startDate)}`,
-    note: "If the baby wakes, tap Log wake. Use Final wake when the night is over.",
+    note: (() => {
+      const nextWake = plan.blocks.find((block) => block.kind === "night-break-predicted" && block.start > now());
+      return nextWake
+        ? `Likely next wake around ${formatClock(nextWake.start)}. Use Final wake when the night is over.`
+        : "If the baby wakes, tap Log wake. Use Final wake when the night is over.";
+    })(),
     primary: "Log wake",
     secondary: "Final wake",
   };
@@ -1304,7 +1513,11 @@ function buildSleepSectionEntries(bounds, includePredictions, sleepPlan) {
 
   const predictedEntries = includePredictions && sleepPlan
     ? sleepPlan.blocks
-        .filter((block) => (ui.sleepMode === "sun" ? block.kind === "predicted" : block.kind === "night"))
+        .filter((block) =>
+          ui.sleepMode === "sun"
+            ? block.kind === "predicted"
+            : block.kind === "night" || block.kind === "night-break-predicted",
+        )
         .filter((block) => overlapsRange(block.start, block.end, bounds.rangeStart, bounds.rangeEnd))
         .map((block) => ({
           sortDate: block.start,
@@ -1313,6 +1526,7 @@ function buildSleepSectionEntries(bounds, includePredictions, sleepPlan) {
           title: block.title,
           note: block.note,
           durationMinutes: (block.end - block.start) / 60000,
+          predictedKind: block.kind,
           isPredicted: true,
         }))
     : [];
@@ -1325,9 +1539,12 @@ function getSleepSectionOverview(dateValue, isCurrentDate, isFutureDate, sleepPl
 
   if (isFutureDate) {
     const predictions = sleepPlan.blocks.filter((block) =>
-      ui.sleepMode === "sun" ? block.kind === "predicted" : block.kind === "night",
+      ui.sleepMode === "sun"
+        ? block.kind === "predicted"
+        : block.kind === "night" || block.kind === "night-break-predicted",
     );
     const timeSummary = predictions.map((block) => formatClock(block.start)).join(", ");
+    const wakePredictions = predictions.filter((block) => block.kind === "night-break-predicted");
 
     return ui.sleepMode === "sun"
       ? {
@@ -1336,7 +1553,11 @@ function getSleepSectionOverview(dateValue, isCurrentDate, isFutureDate, sleepPl
         }
       : {
           main: `Predicted night for ${dateLabel}`,
-          note: `Bedtime around ${formatClock(bounds.dayEnd)} and wake around ${formatClock(bounds.tomorrowWake)}.`,
+          note: wakePredictions.length
+            ? `Bedtime around ${formatClock(bounds.dayEnd)}. Likely wakes around ${wakePredictions
+                .map((block) => formatClock(block.start))
+                .join(", ")}.`
+            : `Bedtime around ${formatClock(bounds.dayEnd)} and wake around ${formatClock(bounds.tomorrowWake)}.`,
         };
   }
 
@@ -1380,6 +1601,7 @@ function getSleepSectionOverview(dateValue, isCurrentDate, isFutureDate, sleepPl
   const activeNight = getActiveNightEvent();
   if (activeNight && overlapsRange(activeNight.startDate, now(), bounds.rangeStart, bounds.rangeEnd)) {
     const activeBreak = getActiveNightBreak(activeNight);
+    const nextWake = sleepPlan.blocks.find((block) => block.kind === "night-break-predicted" && block.start > now());
     return activeBreak
       ? {
           main: `${state.profile.babyName} is awake tonight`,
@@ -1387,13 +1609,22 @@ function getSleepSectionOverview(dateValue, isCurrentDate, isFutureDate, sleepPl
         }
       : {
           main: `Night started at ${formatClock(activeNight.startDate)}`,
-          note: `Final wake is expected around ${formatClock(bounds.tomorrowWake)} tomorrow.`,
+          note: nextWake
+            ? `Likely next wake around ${formatClock(nextWake.start)}. Final wake is expected around ${formatClock(
+                bounds.tomorrowWake,
+              )} tomorrow.`
+            : `Final wake is expected around ${formatClock(bounds.tomorrowWake)} tomorrow.`,
         };
   }
 
+  const nextWake = sleepPlan.blocks.find(
+    (block) => block.kind === "night-break-predicted" && overlapsRange(block.start, block.end, bounds.rangeStart, bounds.rangeEnd),
+  );
   return {
-    main: `Bedtime around ${formatClock(bounds.dayEnd)}`,
-    note: `Next wake is likely around ${formatClock(bounds.tomorrowWake)} tomorrow.`,
+    main: nextWake ? `Next wake around ${formatClock(nextWake.start)}` : `Bedtime around ${formatClock(bounds.dayEnd)}`,
+    note: nextWake
+      ? `${nextWake.note} Final wake is likely around ${formatClock(bounds.tomorrowWake)} tomorrow.`
+      : `Next wake is likely around ${formatClock(bounds.tomorrowWake)} tomorrow.`,
   };
 }
 
@@ -1446,9 +1677,18 @@ function getPlanSegments(bounds, sleepPlan, includePredictions) {
   const futureSegments =
     includePredictions && sleepPlan
       ? sleepPlan.blocks
-          .filter((block) => (ui.sleepMode === "sun" ? block.kind === "predicted" : block.kind === "night"))
+          .filter((block) =>
+            ui.sleepMode === "sun"
+              ? block.kind === "predicted"
+              : block.kind === "night" || block.kind === "night-break-predicted",
+          )
           .map((block) => ({
-            kind: ui.sleepMode === "sun" ? "sun-predicted" : "moon-predicted",
+            kind:
+              ui.sleepMode === "sun"
+                ? "sun-predicted"
+                : block.kind === "night-break-predicted"
+                  ? "moon-break-predicted"
+                  : "moon-predicted",
             start: block.start,
             end: block.end,
           }))
@@ -1621,7 +1861,9 @@ function renderDateStrips() {
 
 function renderNapStartAdjuster() {
   const activeNap = getActiveNap();
-  const showLivePanel = ui.sleepMode === "sun" && Boolean(activeNap);
+  const activeNight = getActiveNightEvent();
+  const activeBreak = ui.sleepMode === "moon" ? getActiveNightBreak(activeNight) : null;
+  const showLivePanel = ui.sleepMode === "sun" ? Boolean(activeNap) : Boolean(activeBreak);
 
   els.sleepLivePanel.classList.toggle("is-visible", showLivePanel);
   els.napAdjustRow.hidden = !showLivePanel;
@@ -1631,7 +1873,12 @@ function renderNapStartAdjuster() {
     return;
   }
 
-  const activeStart = new Date(activeNap.start);
+  const activeStart =
+    ui.sleepMode === "sun" ? new Date(activeNap.start) : activeBreak.startDate ? new Date(activeBreak.startDate) : null;
+  if (!activeStart) {
+    els.napStartTimeButton.textContent = "Start time";
+    return;
+  }
   els.napStartTimeButton.textContent = formatClock(activeStart);
 }
 
@@ -1664,14 +1911,14 @@ function renderFeedDetailsOverlay() {
 }
 
 function renderSleepModeTimer(sleepPlan = buildSleepPlan()) {
-  const timer = ui.sleepMode === "sun" ? getActiveNapTimerData(sleepPlan.model) : null;
+  const timer = ui.sleepMode === "sun" ? getActiveNapTimerData(sleepPlan.model) : getActiveNightBreakTimerData();
 
   els.sleepModeTimer.hidden = !timer;
   if (!timer) {
     return;
   }
 
-  els.sleepModeTimerPrimaryLabel.textContent = "Asleep";
+  els.sleepModeTimerPrimaryLabel.textContent = ui.sleepMode === "sun" ? "Asleep" : "Awake";
   els.sleepModeTimerValue.textContent = formatTimerDuration(timer.elapsedMs);
   els.sleepModeTimerSecondaryLabel.textContent = timer.isOverdue ? "Overdue" : "Left";
   els.sleepModeTimerEnd.textContent = formatTimerDuration(Math.abs(timer.remainingMs));
@@ -1747,6 +1994,25 @@ function getDefaultManualNightValues(dateValue = ui.historyDate) {
   };
 }
 
+function getDefaultManualNightBreakValues(dateValue = ui.historyDate) {
+  const referenceDay = parseDateValue(dateValue);
+  const currentBounds = getDayBoundsForDate(referenceDay);
+  const activeNight = getActiveNightEvent();
+  if (activeNight && ui.historyDate === formatDateInput(now())) {
+    const start = getActiveNightBreak(activeNight)?.startDate || now();
+    const end = addDays(start, 0);
+    return {
+      start: formatTimeInput(start),
+      end: formatTimeInput(new Date(start.getTime() + 20 * 60000)),
+    };
+  }
+
+  return {
+    start: formatTimeInput(new Date(currentBounds.dayEnd.getTime() + 4 * 60 * 60000)),
+    end: formatTimeInput(new Date(currentBounds.dayEnd.getTime() + 4 * 60 * 60000 + 20 * 60000)),
+  };
+}
+
 function getDefaultManualFeedValue(dateValue = ui.historyDate) {
   if (dateValue === formatDateInput(now())) {
     return formatTimeInput(now());
@@ -1757,7 +2023,11 @@ function getDefaultManualFeedValue(dateValue = ui.historyDate) {
 
 function populateManualNapForm() {
   const defaults =
-    ui.sleepMode === "moon" ? getDefaultManualNightValues(ui.historyDate) : getDefaultManualNapValues(ui.historyDate);
+    ui.sleepMode === "moon"
+      ? ui.sleepComposerType === "break"
+        ? getDefaultManualNightBreakValues(ui.historyDate)
+        : getDefaultManualNightValues(ui.historyDate)
+      : getDefaultManualNapValues(ui.historyDate);
   els.manualNapStartInput.value = defaults.start;
   els.manualNapEndInput.value = defaults.end;
 }
@@ -1766,10 +2036,52 @@ function populateManualFeedForm() {
   els.manualFeedTimeInput.value = getDefaultManualFeedValue(ui.historyDate);
 }
 
+function updateManualSleepFormCopy() {
+  const showBreakToggle = ui.sleepMode === "moon";
+  els.manualSleepTypeToggle.hidden = !showBreakToggle;
+  els.manualSleepNightButton.classList.toggle("is-active", ui.sleepComposerType === "sleep");
+  els.manualSleepBreakButton.classList.toggle("is-active", ui.sleepComposerType === "break");
+
+  if (ui.sleepMode === "sun") {
+    els.manualSleepStartLabel.textContent = "Start";
+    els.manualSleepEndLabel.textContent = "End";
+    els.manualSleepSaveButton.textContent = "Save nap";
+    return;
+  }
+
+  if (ui.sleepComposerType === "break") {
+    els.manualSleepStartLabel.textContent = "Wake start";
+    els.manualSleepEndLabel.textContent = "Back asleep";
+    els.manualSleepSaveButton.textContent = "Save wake break";
+    return;
+  }
+
+  els.manualSleepStartLabel.textContent = "Bedtime";
+  els.manualSleepEndLabel.textContent = "Final wake";
+  els.manualSleepSaveButton.textContent = "Save night";
+}
+
+function getDefaultSleepComposerType(dateValue = ui.historyDate) {
+  if (ui.sleepMode !== "moon") {
+    return "sleep";
+  }
+
+  const referenceDay = parseDateValue(dateValue);
+  const currentBounds = getDayBoundsForDate(referenceDay);
+  const nextWake = getDayBoundsForDate(addDays(referenceDay, 1)).dayStart;
+  const hasNight = getParsedNights().some((night) => {
+    const nightEnd = night.endDate || nextWake;
+    return overlapsRange(night.startDate, nightEnd, currentBounds.dayEnd, nextWake);
+  });
+
+  return hasNight ? "break" : "sleep";
+}
+
 function openSleepDetails({ compose = false } = {}) {
   ui.sleepDetailsOpen = true;
   if (compose) {
     ui.openComposer = "sleep";
+    ui.sleepComposerType = getDefaultSleepComposerType();
     populateManualNapForm();
   }
   render();
@@ -1910,7 +2222,7 @@ function render() {
   const sleepPlan = buildSleepPlan();
   const sleepSummary = getNextSleepSummary(sleepPlan);
   const napCopy = getQuickNapCopy(sleepPlan);
-  const nightCopy = getQuickNightCopy();
+  const nightCopy = getQuickNightCopy(sleepPlan);
   const feedPrediction = getNextFeedPrediction();
   const feedCopy = getQuickFeedCopy(feedPrediction);
   const ageInfo = getProfileAgeInfo();
@@ -1923,9 +2235,7 @@ function render() {
     els.sleepPrimaryButton.textContent = showPlayButton ? "Start" : napCopy.button;
     els.sleepPrimaryButton.disabled = napCopy.disabled;
     els.sleepSecondaryButton.hidden = true;
-    els.manualSleepStartLabel.textContent = "Start";
-    els.manualSleepEndLabel.textContent = "End";
-    els.manualSleepSaveButton.textContent = "Save nap";
+    ui.sleepComposerType = "sleep";
   } else {
     els.sleepModeEyebrow.textContent = "Night";
     els.sleepModeHeadline.textContent = nightCopy.headline;
@@ -1936,12 +2246,11 @@ function render() {
     if (nightCopy.secondary) {
       els.sleepSecondaryButton.textContent = nightCopy.secondary;
     }
-    els.manualSleepStartLabel.textContent = "Bedtime";
-    els.manualSleepEndLabel.textContent = "Final wake";
-    els.manualSleepSaveButton.textContent = "Save night";
   }
 
   els.sleepPrimaryButton.classList.toggle("is-play-button", showPlayButton);
+  els.sleepHeroSecondaryActions.hidden = !(ui.sleepMode === "moon" && Boolean(getActiveNightEvent()));
+  updateManualSleepFormCopy();
 
   els.feedHeadline.textContent = feedCopy.headline;
   els.feedQuickNote.textContent = feedCopy.note;
@@ -2098,6 +2407,43 @@ function adjustActiveNapStart(deltaMinutes) {
   render();
 }
 
+function adjustActiveNightBreakStart(deltaMinutes) {
+  const activeNight = getActiveNight();
+  if (!activeNight) {
+    return;
+  }
+
+  const activeBreak = (activeNight.breaks || []).find((nightBreak) => !nightBreak.end);
+  if (!activeBreak) {
+    return;
+  }
+
+  const currentStart = new Date(activeBreak.start);
+  const maxStart = now();
+  const nightStart = new Date(activeNight.start);
+  const completedBreaks = (activeNight.breaks || [])
+    .filter((nightBreak) => nightBreak.id !== activeBreak.id && nightBreak.end)
+    .map((nightBreak) => ({
+      startDate: new Date(nightBreak.start),
+      endDate: new Date(nightBreak.end),
+    }))
+    .sort((a, b) => a.startDate - b.startDate);
+  const previousBreak = completedBreaks.filter((nightBreak) => nightBreak.endDate <= currentStart).slice(-1)[0] || null;
+  const minStart = previousBreak ? new Date(previousBreak.endDate.getTime() + 60000) : nightStart;
+  let nextStart = new Date(currentStart.getTime() + deltaMinutes * 60000);
+
+  if (nextStart < minStart) {
+    nextStart = minStart;
+  }
+
+  if (nextStart > maxStart) {
+    nextStart = maxStart;
+  }
+
+  activeBreak.start = nextStart.toISOString();
+  render();
+}
+
 function addManualNap(dateValue, startTime, endTime) {
   const start = combineDateAndTime(dateValue, startTime);
   const end = combineDateAndTime(dateValue, endTime);
@@ -2138,6 +2484,58 @@ function addManualNight(dateValue, startTime, endTime) {
     end: end.toISOString(),
     breaks: [],
   });
+  ui.historyDate = dateValue;
+  ui.openComposer = null;
+  ui.sleepDetailsOpen = true;
+  render();
+  return true;
+}
+
+function combineNightDateAndTime(dateValue, timeValue) {
+  const referenceDay = parseDateValue(dateValue);
+  const currentBounds = getDayBoundsForDate(referenceDay);
+  let combined = combineDateAndTime(dateValue, timeValue);
+  if (combined < currentBounds.dayEnd) {
+    combined = addDays(combined, 1);
+  }
+  return combined;
+}
+
+function addManualNightBreak(dateValue, startTime, endTime) {
+  const start = combineNightDateAndTime(dateValue, startTime);
+  let end = combineNightDateAndTime(dateValue, endTime);
+  if (end <= start) {
+    end = new Date(start.getTime() + 20 * 60000);
+  }
+
+  const matchingNight = getParsedNights()
+    .filter((night) => {
+      const nightEnd = night.endDate || getDayBoundsForDate(addDays(parseDateValue(dateValue), 1)).dayStart;
+      return night.startDate <= start && nightEnd >= end;
+    })
+    .sort((a, b) => b.startDate - a.startDate)[0];
+
+  if (!matchingNight) {
+    window.alert("Add or start a night first, then add a wake break inside that night.");
+    return false;
+  }
+
+  const overlapsExistingBreak = (matchingNight.breaks || []).some((nightBreak) =>
+    overlapsRange(nightBreak.startDate, nightBreak.endDate || end, start, end),
+  );
+  if (overlapsExistingBreak) {
+    window.alert("That wake break overlaps an existing wake break.");
+    return false;
+  }
+
+  const rawNight = state.nights.find((night) => night.id === matchingNight.id);
+  rawNight.breaks = rawNight.breaks || [];
+  rawNight.breaks.push({
+    id: uid(),
+    start: start.toISOString(),
+    end: end.toISOString(),
+  });
+
   ui.historyDate = dateValue;
   ui.openComposer = null;
   ui.sleepDetailsOpen = true;
@@ -2227,6 +2625,12 @@ els.sleepPrimaryButton.addEventListener("click", () => {
 });
 
 els.sleepSecondaryButton.addEventListener("click", () => {
+  if (ui.sleepMode === "moon") {
+    endNight();
+  }
+});
+
+els.sleepHeroSecondaryButton.addEventListener("click", () => {
   if (ui.sleepMode === "moon") {
     endNight();
   }
@@ -2324,6 +2728,18 @@ els.addSleepEntryButton.addEventListener("click", () => {
   }
 });
 
+els.manualSleepNightButton.addEventListener("click", () => {
+  ui.sleepComposerType = "sleep";
+  populateManualNapForm();
+  render();
+});
+
+els.manualSleepBreakButton.addEventListener("click", () => {
+  ui.sleepComposerType = "break";
+  populateManualNapForm();
+  render();
+});
+
 els.addFeedEntryButton.addEventListener("click", () => {
   if (ui.openComposer === "feed") {
     ui.openComposer = null;
@@ -2341,17 +2757,27 @@ els.addFeedEntryButton.addEventListener("click", () => {
   }
 });
 
-els.napAdjustMinusFive.addEventListener("click", () => adjustActiveNapStart(-5));
-els.napAdjustMinusOne.addEventListener("click", () => adjustActiveNapStart(-1));
-els.napAdjustPlusOne.addEventListener("click", () => adjustActiveNapStart(1));
-els.napAdjustPlusFive.addEventListener("click", () => adjustActiveNapStart(5));
+function adjustVisibleSleepStart(deltaMinutes) {
+  if (ui.sleepMode === "moon") {
+    adjustActiveNightBreakStart(deltaMinutes);
+    return;
+  }
+
+  adjustActiveNapStart(deltaMinutes);
+}
+
+els.napAdjustMinusFive.addEventListener("click", () => adjustVisibleSleepStart(-5));
+els.napAdjustMinusOne.addEventListener("click", () => adjustVisibleSleepStart(-1));
+els.napAdjustPlusOne.addEventListener("click", () => adjustVisibleSleepStart(1));
+els.napAdjustPlusFive.addEventListener("click", () => adjustVisibleSleepStart(5));
 
 els.manualNapForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  const saved =
-    ui.sleepMode === "moon"
-      ? addManualNight(ui.historyDate, els.manualNapStartInput.value, els.manualNapEndInput.value)
-      : addManualNap(ui.historyDate, els.manualNapStartInput.value, els.manualNapEndInput.value);
+  const saved = ui.sleepMode === "moon"
+    ? ui.sleepComposerType === "break"
+      ? addManualNightBreak(ui.historyDate, els.manualNapStartInput.value, els.manualNapEndInput.value)
+      : addManualNight(ui.historyDate, els.manualNapStartInput.value, els.manualNapEndInput.value)
+    : addManualNap(ui.historyDate, els.manualNapStartInput.value, els.manualNapEndInput.value);
   if (saved) {
     populateManualNapForm();
   }

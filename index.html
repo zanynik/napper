@@ -56,6 +56,9 @@
                 <div class="sleep-ring-anchor sleep-ring-anchor-end" id="sleepRingEndLabel"></div>
               </div>
             </div>
+            <div class="hero-secondary-actions" id="sleepHeroSecondaryActions" hidden>
+              <button class="secondary-action" id="sleepHeroSecondaryButton" type="button">Final wake</button>
+            </div>
           </article>
         </section>
       </section>
@@ -208,8 +211,11 @@
               Final wake
             </button>
           </div>
-          <div class="upcoming-list" id="sleepDayList"></div>
           <form id="manualNapForm" class="inline-add-form" hidden>
+            <div class="sleep-entry-type-toggle" id="manualSleepTypeToggle" hidden>
+              <button class="secondary-action is-active" id="manualSleepNightButton" type="button">Night</button>
+              <button class="secondary-action" id="manualSleepBreakButton" type="button">Wake break</button>
+            </div>
             <label>
               <span id="manualSleepStartLabel">Start</span>
               <input id="manualNapStartInput" name="manualNapStart" type="time" required />
@@ -220,6 +226,7 @@
             </label>
             <button class="secondary-action" id="manualSleepSaveButton" type="submit">Save nap</button>
           </form>
+          <div class="upcoming-list" id="sleepDayList"></div>
         </section>
       </div>
 
@@ -245,7 +252,6 @@
             </div>
           </div>
           <p class="details-note history-summary" id="historySummary"></p>
-          <div class="history-list" id="historyList"></div>
           <form id="manualFeedForm" class="inline-add-form" hidden>
             <label>
               Time
@@ -262,6 +268,7 @@
             </label>
             <button class="secondary-action" type="submit">Save feed</button>
           </form>
+          <div class="history-list" id="historyList"></div>
         </section>
       </div>
     </main>

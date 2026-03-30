@@ -264,6 +264,12 @@ h3 {
   color: var(--accent-strong);
 }
 
+.secondary-action.is-active {
+  border-color: rgba(201, 129, 98, 0.35);
+  background: rgba(201, 129, 98, 0.14);
+  color: var(--accent-strong);
+}
+
 .icon-button:hover,
 .secondary-action:hover,
 .primary-action:hover,
@@ -420,6 +426,12 @@ select:focus {
   outline: 2px solid rgba(201, 129, 98, 0.45);
   outline-offset: 6px;
   border-radius: 18px;
+}
+
+.hero-secondary-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: -2px;
 }
 
 .card-divider {
@@ -694,6 +706,10 @@ select:focus {
   stroke: var(--accent);
 }
 
+.plan-ring-segment-moon-break-predicted {
+  stroke: rgba(201, 129, 98, 0.55);
+}
+
 .plan-ring-now-dot {
   fill: var(--text);
   stroke: rgba(255, 255, 255, 0.95);
@@ -715,6 +731,13 @@ select:focus {
 .inline-add-form {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: end;
+}
+
+.sleep-entry-type-toggle {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .inline-add-form button {
